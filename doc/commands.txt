@@ -1,0 +1,194 @@
+FujiChat Command List
+---------------------
+
+[ This documentation is incomplete, but the parts that are complete
+can be considered accurate ]
+
+Being a simple client, FujiChat hasn't got many built-in commands.
+
+Commands are shown here in UPPERCASE but can be entered in lowercase if
+desired. In a few cases, there are multiple names (aliases) for the same
+command; these are listed together.
+
+-------------------------
+
+FujiChat internal commands: these commands are handled by the client.
+
+---
+Name: /JOIN
+Alias: /J
+Syntax: /JOIN <channel>
+Example: /JOIN ##atari
+
+Joins an IRC channel. Since FujiChat can only handle one channel at a
+time, this command only works if you're not already in a channel (use /PART
+to exit the current channel).
+
+Channel names generally start with a #, but on some networks
+(e.g. FreeNode), they might start with ##.
+
+---
+Name: /PART
+
+This command exits from the IRC channel you're currently joined to. If
+you're not in a channel, you'll get a message telling you so.
+
+---
+Name: /NICK
+Syntax: /NICK [<newnickname>]
+Example: /NICK JoeBlow
+
+Change your nickname, for the current session only. If you want to change
+your nick permanently, use the Setup program.
+
+With no argument, this command just shows your current nickname.
+
+---
+Name: /MSG
+Alias: /M
+Syntax: /MSG <user> <message>
+Example: /MSG JohnSmith Hello, this is a private message!
+
+Sends a private message to a user. When the user responds to your message,
+the response will be prefixed with -> to let you know it's not channel
+text. Also, if you haven't disabled it, the bell will activate.
+
+If you're repeatedly sending/receiving private messages with the same
+user, try the Tab key. It'll automatically type "/msg <user> " for you
+(but unlike fancier IRC clients, it doesn't cycle between a list; only
+the most recent /MSG user is remembered).
+
+---
+Name: /PING
+Syntax: /PING <user>
+
+Measure latency between yourself and another user, by sending a message
+that will be echoed back to you. The round trip time is calculated with
+1/10 second precision, and the result is printed like so:
+
+> JoeBlow ping time: 1.2
+
+---
+Name: /VERSION
+Alias: /VER
+Syntax: /VERSION [<user>]
+
+With no argument, this command requests the software version of the
+server you're connected to. The type and format of the response varies
+from network to network, but at minimum, the software's name and version
+plus the server's hostname will be present.
+
+With a user's nick as an argument, a CTCP VERSION request is sent to
+the user, and the response (if any) is printed. The response usually
+contains the client software name and version, and perhaps the type of
+computer and/or OS the software is running on.
+
+---
+Name: /ME
+Syntax: /ME <text>
+
+This is used for "actions". Really it's just another way to send text
+to a channel. Generally, the other users in the channel will see the
+message formatted differently from the regular channel text. Example:
+if your nick is AtariGeek and you type:
+
+/me runs around in circles!
+
+Other users will see something like this:
+
+* AtariGeek runs around in circles!
+
+Currently this can't be used with private messages: the recipient will
+just see "/me does whatever" instead of the special formatting.
+
+---
+Name: /QUIT
+Syntax: /QUIT [<text>]
+Example: /QUIT I'm outta here
+
+This is the correct way to disconnect from the IRC server. <text> is
+optional. If provided, it's printed in the "user has quit" message that
+other users see. The above example might appear as:
+
+* AtariGeek has quit IRC [I'm outta here]
+
+It's considered rude to just disconnect from IRC by powering off the Atari
+or killing the SLIP connection. The server won't know you've disconnected
+for a few minutes, and so it can't notify other users...  which means
+they might keep trying to talk to you, as though you were still there.
+
+---
+Name: /BGCOLOR
+Syntax: /BGCOLOR <number>
+
+Changes the text background color. <number> is a decimal value between
+0 and 255. It's a standard Atari (hue * 16 + luminance) number, like
+you would POKE into a color register in BASIC.
+
+This change won't be permanent. To permanently change the colors, use
+the FujiChat Setup program.
+
+---
+Name: /FGCOLOR
+Syntax: /FGCOLOR <number>
+
+Changes the text foreground color. Remember that on the Atari, in
+"Graphics 0" mode, only the luminance matters here. The hue will be taken
+from the background color. Try to avoid using the same luminance for both
+foreground and background (if you do, you won't be able to see the text).
+
+---
+Name: /QUOTE
+Syntax: /QUOTE <literal text>
+
+Sends a command to the IRC server, with no interpretation or handling
+by FujiChat. This command usually isn't necessary: if FujiChat is given
+an unknown command, it will send it to the server as-is. /QUOTE is more
+useful for development and testing than for normal use.
+
+-------------------------
+
+IRC protocol commands: any command you enter (starting with a slash) that
+FujiChat doesn't recognize, it will pass directly to the IRC server as-is.
+This is a short list of commonly-user IRC commands. It's by no means a
+complete list; see RFC2812 or irchelp.org for more commands.
+
+---
+Name: /TIME
+
+Shows the server's current time. The format may vary, but usually looks
+something like:
+
+391 hitchcock.freenode.net :Wednesary March 13 2019 -- 10:08:11 +00:00
+
+---
+Name: /WHOIS
+Syntax: /WHOIS <user>
+
+Shows information about a user, including "real" name and channel(s)
+they're currently chatting in.
+
+---
+Name: /WHO
+Syntax: /WHO <user or channel>
+
+Shows information about a user, or all users on the channel. Less info
+is shown than a /WHOIS, but this command works on entire channels.
+
+---
+Name: /NAMES
+Syntax: /NAMES [<channel>]
+
+With a channel name, shows a list of users (nicks) in that channel.
+Depending on the network and channel flags, you might only be able to
+get a /NAMES list of a channel if you're actually joined to it.
+
+With no argument, /NAMES gives a list of *every* channel and its users.
+On public IRC networks, this amounts to a massive amount of data, so
+you should NOT use this form of the command!
+
+---
+Name: /LUSERS
+
+Show some user statistics for the server (number of connected users &
+servers, number of IRC operators, etc).

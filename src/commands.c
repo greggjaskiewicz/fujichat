@@ -16,6 +16,7 @@ void cmd_ping(void);
 void cmd_quit(void);
 void cmd_quote(void);
 void cmd_ver(void);
+void cmd_version(void);
 void do_me(void);
 #ifdef FEAT_COLOR_COMMAND
 void cmd_fgcolor(void);
@@ -27,13 +28,13 @@ fuji_cmd_t cmd_list[] = {
 	{ "J", ARGTYPE_OPT, cmd_join },
 	{ "MSG", ARGTYPE_REQUIRED, cmd_msg },
 	{ "M", ARGTYPE_REQUIRED, cmd_msg },
-	{ "NICK", ARGTYPE_REQUIRED, cmd_nick },
+	{ "NICK", ARGTYPE_OPT, cmd_nick },
 	{ "PART", ARGTYPE_NONE, cmd_part },
 	{ "PING", ARGTYPE_REQUIRED, cmd_ping },
 	{ "QUIT", ARGTYPE_OPT, cmd_quit },
 	{ "QUOTE", ARGTYPE_REQUIRED, cmd_quote },
-	{ "VER", ARGTYPE_REQUIRED, cmd_ver },
-	{ "VERSION", ARGTYPE_REQUIRED, cmd_ver },
+	{ "VER", ARGTYPE_OPT, cmd_version },
+	{ "VERSION", ARGTYPE_OPT, cmd_version },
 	{ "ME", ARGTYPE_REQUIRED, do_me },
 #ifdef FEAT_COLOR_COMMAND
 	{ "FGCOLOR", ARGTYPE_REQUIRED, cmd_fgcolor },
@@ -73,6 +74,13 @@ void cmd_ver(void) {
 	serv_msg_buf_len = sprintf(serv_msg_buf, "PRIVMSG %s %cVERSION%c%c",
 			cmd_arg, 1, 1, NL);
 	send_serv_msg_buf();
+}
+
+void cmd_version(void) {
+	if(cmd_arg)
+		cmd_ver();
+	else
+		send_server_cmd("VERSION", NULL);
 }
 
 void cmd_ping(void) {
@@ -117,6 +125,11 @@ void cmd_quote(void) {
 }
 
 void cmd_nick(void) {
+	if(!cmd_arg) {
+		printf("> You are known as %s\n", config->nick);
+		return;
+	}
+
 	strcpy(config->nick, cmd_arg);
 	send_server_cmd("NICK", cmd_arg);
 	printf("> You are now known as %s\n", config->nick);
