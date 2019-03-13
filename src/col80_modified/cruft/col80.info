@@ -1,0 +1,152 @@
+global {
+	comments 4;
+	inputname "col80e.raw";
+	outputname "col80e.dasm";
+	startaddr $7A00;
+};
+
+range {
+	start $7A00;
+	end $7BFF;
+	type bytetable;
+};
+
+range {
+	start $7F48;
+	end $7F80;
+	type bytetable;
+};
+
+range {
+	start $7D52;
+	end $7D81;
+	type bytetable;
+};
+
+range {
+	start $7DEA;
+	end $7DF0;
+	type bytetable;
+};
+
+range {
+	start $7EE5;
+	end $7EF0;
+	type addrtable;
+};
+
+LABEL { NAME "s_dev_open_lo"; ADDR $E410; };
+LABEL { NAME "s_dev_open_hi"; ADDR $E411; };
+
+LABEL { NAME "k_dev_get_lo"; ADDR $E424; };
+LABEL { NAME "k_dev_get_hi"; ADDR $E425; };
+
+LABEL { NAME "DOSINI"; ADDR $0C; };
+LABEL { NAME "DOSINI+1"; ADDR $0D; };
+LABEL { NAME "TMPCHR"; ADDR $50; };
+LABEL { NAME "LMARGN"; ADDR $52; };
+LABEL { NAME "DINDEX"; ADDR $57; };
+LABEL { NAME "SAVMSC"; ADDR $58; };
+LABEL { NAME "SAVMSC+1"; ADDR $59; };
+LABEL { NAME "ICAX1Z"; ADDR $2A; };
+LABEL { NAME "ICAX2Z"; ADDR $2B; };
+LABEL { NAME "ROWCRS"; ADDR $54; };
+LABEL { NAME "COLCRS"; ADDR $55; };
+LABEL { NAME "BUFCNT"; ADDR $6B; };
+LABEL { NAME "SSFLAG"; ADDR $02FF; };
+LABEL { NAME "HATABS"; ADDR $031A; };
+LABEL { NAME "CIOV"; ADDR $E456; };
+LABEL { NAME "CONSOL"; ADDR $D01F; };
+LABEL { NAME "AUDF1"; ADDR $D200; };
+LABEL { NAME "AUDC1"; ADDR $D201; };
+LABEL { NAME "ICCOM"; ADDR $0342; };
+LABEL { NAME "ICBAL"; ADDR $0344; };
+LABEL { NAME "ICBAH"; ADDR $0345; };
+LABEL { NAME "COLOR1"; ADDR $02C5; };
+LABEL { NAME "COLOR2"; ADDR $02C6; };
+LABEL { NAME "MEMTOP"; ADDR $02E5; };
+LABEL { NAME "MEMTOP+1"; ADDR $02E6; };
+
+LABEL { NAME "col80e_vector_tab"; ADDR $7EE5; };
+LABEL { NAME "col80e_open-1"; ADDR $7C00; };
+LABEL { NAME "col80e_open"; ADDR $7C01; };
+LABEL { NAME "col80e_close-1"; ADDR $7C3F; };
+LABEL { NAME "col80e_close"; ADDR $7C40; };
+LABEL { NAME "col80e_getbyte-1"; ADDR $7DF1; };
+LABEL { NAME "col80e_getbyte"; ADDR $7DF2; };
+LABEL { NAME "col80e_putbyte-1"; ADDR $7C42; };
+LABEL { NAME "col80e_putbyte"; ADDR $7C43; };
+LABEL { NAME "col80e_init"; ADDR $7EC0; };
+
+LABEL { NAME "screen_ptr_lo"; ADDR $CB; };
+LABEL { NAME "screen_ptr_hi"; ADDR $CC; };
+LABEL { NAME "font_ptr_lo"; ADDR $CD; };
+LABEL { NAME "font_ptr_hi"; ADDR $CE; };
+
+LABEL { NAME "font_data"; ADDR $7A00; };
+LABEL { NAME "lo_nybble_flag"; ADDR $7F48; };
+
+LABEL { NAME "clear_screen"; ADDR $7D0B; };
+LABEL { NAME "regular_char"; ADDR $7C56; };
+LABEL { NAME "check_ssflag"; ADDR $7C7F; };
+LABEL { NAME "dosini_entry_point"; ADDR $7EF4; };
+LABEL { NAME "main_entry_point"; ADDR $7EF7; };
+LABEL { NAME "get_keystroke"; ADDR $7EB7; };
+LABEL { NAME "return_success"; ADDR $7D31; };
+LABEL { NAME "inverse_mask"; ADDR $7F49; };
+LABEL { NAME "not_inverse"; ADDR $7C60; };
+LABEL { NAME "open_s_dev"; ADDR $7C37; };
+LABEL { NAME "init_graphics_8"; ADDR $7C14; };
+LABEL { NAME "not_eol"; ADDR $7C4F; };
+LABEL { NAME "graphics_ok"; ADDR $7C73; };
+LABEL { NAME "setup_screen_ptr"; ADDR $7D34; };
+LABEL { NAME "setup_font_ptr"; ADDR $7CC9; };
+LABEL { NAME "hi_byte_ok"; ADDR $7D4F; };
+LABEL { NAME "row_low_offset_tab"; ADDR $7D52; };
+LABEL { NAME "row_high_offset_tab"; ADDR $7D6A; };
+LABEL { NAME "cls_loop"; ADDR $7D19; };
+LABEL { NAME "write_font_data_odd"; ADDR $7D82; };
+LABEL { NAME "write_font_data_even"; ADDR $7DB9; };
+LABEL { NAME "scroll_screen"; ADDR $7C87; };
+LABEL { NAME "advance_cursor"; ADDR $7CEE; };
+LABEL { NAME "skip_write"; ADDR $7C7C; };
+LABEL { NAME "skip_ninv"; ADDR $7C65; };
+LABEL { NAME "lo_nybble_odd"; ADDR $7D97; };
+LABEL { NAME "hi_nybble_even"; ADDR $7DC8; };
+LABEL { NAME "write_font_done_odd"; ADDR $7DB8; };
+LABEL { NAME "get_font_nybble_odd"; ADDR $7D8C; };
+LABEL { NAME "get_font_nybble_even"; ADDR $7DBD; };
+LABEL { NAME "screen_ptr_ok_odd"; ADDR $7DB0; };
+LABEL { NAME "screen_ptr_ok_even"; ADDR $7DE1; };
+LABEL { NAME "write_font_done_even"; ADDR $7DE9; };
+LABEL { NAME "scanline_offset_tab"; ADDR $7DEA; };
+LABEL { NAME "get_line"; ADDR $7E04; };
+LABEL { NAME "line_buffer_index"; ADDR $7F4A; };
+LABEL { NAME "line_buffer"; ADDR $7F4B; };
+LABEL { NAME "get_next_byte"; ADDR $7DF6; };
+LABEL { NAME "show_cursor"; ADDR $7E0B; };
+LABEL { NAME "keystroke_ok"; ADDR $7E2B; };
+LABEL { NAME "return_key_hit"; ADDR $7E52; };
+LABEL { NAME "check_backs_key"; ADDR $7E32; };
+LABEL { NAME "backs_key_hit"; ADDR $7E71; };
+LABEL { NAME "check_clear_key"; ADDR $7E39; };
+LABEL { NAME "clear_key_hit"; ADDR $7E64; };
+LABEL { NAME "normal_key_hit"; ADDR $7E40; };
+LABEL { NAME "beep"; ADDR $7E8F; };
+LABEL { NAME "beep_delay_x"; ADDR $7E93; };
+LABEL { NAME "beep_delay_y"; ADDR $7E99; };
+LABEL { NAME "buffer_character"; ADDR $7E47; };
+LABEL { NAME "print_space"; ADDR $7EA4; };
+LABEL { NAME "backs_key_done"; ADDR $7E8C; };
+LABEL { NAME "same_line"; ADDR $7E8A; };
+LABEL { NAME "next_hatab_slot"; ADDR $7EC2; };
+LABEL { NAME "register_x_handler"; ADDR $7ED1; };
+LABEL { NAME "no_e_handler"; ADDR $7F30; };
+LABEL { NAME "no_scroll"; ADDR $7D08; };
+LABEL { NAME "next_line"; ADDR $7D0A; };
+LABEL { NAME "font_hi_nybble"; ADDR $7CDB; };
+LABEL { NAME "scroll_line_loop"; ADDR $7C9C; };
+LABEL { NAME "blank_bottom_row"; ADDR $7CAA; };
+LABEL { NAME "blank_loop"; ADDR $7CBA; };
+LABEL { NAME "blank_tail"; ADDR $7CC3; };
+

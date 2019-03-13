@@ -1,0 +1,10 @@
+
+        processor 6502  ; dasm
+
+ .include col80_startaddr.s
+ .include col80_header_seg.s
+ .include col80_main.s
+ .include col80_dosini_seg.s
+
+ .include col80_runad_seg.s
+

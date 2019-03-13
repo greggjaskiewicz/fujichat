@@ -1,0 +1,95 @@
+connect to server, wait a second... NICK $nick
+USER dammit dammit irc.newnet.net :dammit
+JOIN #channel
+PRIVMSG #channel Hello world!
+
+At any time, if you get a PING $whatever, respond with PONG $whatever
+
+For now just dump everything to stdout, raw. Later we can be nice and format
+stuff like a real IRC client would...
+
+Need a custom DL, 24 lines of GR.0, set up correctly for the OS to print
+and scroll, etc, then one blank scanline and one more line of GR.0. Whatever
+the user types on the bottom line there gets displayed but not sent to
+the server until the user presses Return. If joined to a channel, there
+should be a prompt with the channel name, and any text typed should get
+sent as PRIVMSG #$channel $text. If no channel, don't send to server.
+Whether on a channel or not, user can use /commands. Minimal set we
+want to support:
+
+/nick $newnick
+/join #$channel
+/part
+/quit <$quitmsg>
+/msg $user $text
+/whois
+
+For now, only one channel can be joined. PRIVMSG's from other users, and
+server messages, etc, will be displayed mixed with channel text.
+
+Actually, the DL should maybe have an additional GR.0 status line at
+the top. This will be 26 lines... or we can have the 2nd line have a LMS
+pointing 40 bytes past the "real" location of the OS's screen RAM, meaning
+the OS will print & scroll the top line, but it won't actually be displayed.
+Eventually the whole thing has to be done with a custom screen handler,
+for performance reasons.
+
+/nick $nick
+
+Send "NICK $nick" to server
+
+If you send NICK $nick and get back a 433, that's "nick already in use",
+pick a different nick & try again. The USER command won't succeed until
+the initial NICK is established (nor will any JOINs, etc)
+
+/join $channel
+
+Send "JOIN $channel" to server. The user has to type the # (which might
+be some other character for some kinds of channels). Only one channel is
+supported for now.
+
+/part - send "PART $channel" to server ($channel is from the previous
+/join command)
+
+/quit <$quitmsg>
+
+With a message, send "QUIT :$quitmsg", otherwise just send "QUIT"
+
+/msg $user $test - send "PRIVMSG $user :$text" (should also allow /m)
+
+/whois $nick - send "WHOIS $nick"
+
+For normal channel text, send "PRIVMSG $channel :$text"
+
+Incoming text, need to translate EOLs and tabs... and strip color codes,
+handle ^AACTION, translate or ignore other unprintables in ATASCII,
+particularly { } ~ chars. Nicks need everything after the ! removed.
+A PRIVMSG to the current channel also needs everything up to and
+including "PRIVMSG $channel :" removed.
+
+The biggest problem right now: the code assumes each line of text from
+the IRC server (terminated with \n) will arrive in its own packet. This
+is often the case, but not always. What needs to happen is that there
+should be an output line buffer. The buffer starts empty, and as packets
+come in, they should be scanned for \n's and put into the buffer... when
+we hit a \n char, print (or format/parse) the output buffer, clear it,
+and start scanning again. If we hit end-of-packet, don't do anything with
+the buffer. Next packet, we'll start appending to the old buffer until we
+hit \n again. This will allow us to respond to PING requests even when
+they get split across packets. The buffer will probably be 1K in size,
+we need to handle overflow conditions in a sane way (maybe just pretend
+we got a \n and print/clear the buffer).
+
+actions:
+
+Send:
+PRIVMSG #chan :^AACTION does an action^A
+
+Receive:
+:nick PRIVMSG #chan ^AACTION does an action^A
+
+pings:
+
+Receive:
+
+:nick PRIVMSG nick ^APING <stuff>^A

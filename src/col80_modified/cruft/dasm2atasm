@@ -1,0 +1,362 @@
+#!/usr/bin/perl -w
+
+=head1 NAME
+
+dasm2atasm - converts 6502 assembly in DASM syntax to ATASM (or MAC/65) format.
+
+=head1 SYNOPSIS
+
+	dasm2atasm mycode.asm
+
+Writes output to I<mycode.m65>
+
+	dasm2atasm stuff.asm other.m65
+
+Reads from I<stuff.asm>, writes to I<other.m65>
+
+=head1 DESCRIPTION
+
+B<dasm2atasm> tries its best to convert DASM's syntax into something
+that B<ATASM> can use. Since B<ATASM>'s syntax is 99% compatible with
+that of B<MAC/65>, B<dasm2atasm> can be used for that as well.
+
+=head1 CAVEATS
+
+There are a few B<DASM> directives that aren't quite supported by
+B<ATASM>.
+
+=over 4
+
+=item echo
+
+In B<DASM> syntax, I<echo> can interpolate values, like so:
+
+	echo $100-*, " bytes of zero page left"
+
+B<ATASM>'s closest equivalent to I<echo> is I<.warn>, but it doesn't
+allow multiple arguments or interpolation. For now, B<dasm2atasm> just
+comments out the line with the I<echo> directive.
+
+=item seg and seg.u
+
+B<ATASM> just plain doesn't support segments. These directives will
+just be commented out. This I<shouldn't> have any effect on the
+object code.
+
+=item sta.w, sty.w, stx.w 
+
+B<ATASM> doesn't provide a way to force word addressing, when the operand
+of a store instruction will allow zero page addressing to be used. You'll
+run into this a lot in Atari 2600 code, or any other 6502 code that has to
+maintain sync with an external piece of hardware (using word addressing
+causes the 6502 to use an extra CPU cycle, which is the only way to cause
+a 1-cycle delay).
+
+For now, we're just converting any I<st?.w> instructions to the appropriate
+I<.byte> directives, like so:
+
+	;;;;; dasm2atasm: was `sta.w COLUPF', using .byte to generate opcode
+	.byte $8d, COLUPF, $00
+
+This works fine if I<COLUPF> is a zero-page label. It's possible, though
+unlikely, that you'll run across code where the programmer has used I<sta.w>
+with a label that would already cause absolute word addressing to be used,
+in which case the extra I<$00> will break our code (literally: I<$00> is
+the I<BRK> instruction!)
+
+This isn't likely to be fixed by I<dasm2atasm>. The correct fix will be to
+support I<sta.w> and friends in B<ATASM> itself, which may happen in the
+future.
+
+=item . (dot)
+
+B<DASM> allows the use of I<.> or I<*> to represent the current program counter
+in expressions. B<ATASM> only allows I<*>, and unless I want to include a
+full expression-parser in B<dasm2atasm>, I can't reliably translate this.
+
+For now, you'll have to fix this yourself. Future versions will at least
+make an attempt, but this one doesn't.
+
+=back
+
+=head1 AUTHOR
+
+B. Watson I<< <urchlay@urchlay.com> >>. Comments & constructive criticism
+welcome, or just a friendly `hello'. Spam will be redirected to /dev/null
+and so will the spammer's entire domain.
+
+=cut
+
+sub usage {
+	print <<EOF;
+Usage: $0 -[aclmr] infile.asm [outfile.m65]
+
+EOF
+	exit 1;
+}
+
+sub get_mac_sub {
+	my $rex = shift;
+	my $code = "sub { s/($rex)/\\U\$1/gio };";
+	#warn "code is $code";
+	return eval "$code";
+}
+
+sub unhex {
+	# makes a proper $xx, $xx, $xx list of bytes
+	# from a list of hex digits, spaces optional.
+	my $bytes = shift;
+	my $ret   = "";
+
+	$bytes =~ s/\s//g;
+
+	#warn "unhex: bytes is $bytes";
+
+	for($bytes =~ /(..)/g) {
+		#warn "unhex: found $_";
+		$ret .= "\$$_, ";
+	}
+
+	chop $ret;
+	chop $ret;
+
+	return $ret;
+}
+
+sub fix_include {
+	my $inc = shift;
+	my $old = $inc;
+	$inc =~ s/\.(\w+)("?)$/.m65$2/;
+
+	if($recursive) {
+		system("$cmd $old $inc");
+	} else {
+		warn "Don't forget to convert included file `$old' to .m65 format!\n";
+	}
+	return $inc;
+}
+
+sub do_subs {
+	# Do the dirty work of the substitutions. Only reason we have this
+	# as a subroutine of its own is for profiling purposes (and we do
+	# spend a *lot* of time here!)
+	my $line = shift;
+
+	for($line) {
+		s/^(\@?\w+):/$1/;      # no colons after labels, in atasm
+		s/%/~/g;               # binary constant
+		s/!=/<>/g;             # inequality
+
+		s/^(\s+)\.?echo(.*)/;;;;;$1.warn$2/i     &&
+			do { warn "$in, line $.:\n\t`.warn' not fully compatible with dasm's `echo', commented out\n" }
+												 && next;
+
+		# This is supposed to change e.g. `bpl .label' to `bpl @label'
+		s/^(\s+)([a-z]{3})(\s+)\.(\w+)/$1$2$3\@$4/i
+													&& next;
+
+
+		s/{(\d)}/%$1/g;        # macro arg (gotta do this *after* bin. constants!)
+
+# atasm doesn't support shifts, emulate with multiply/divide
+		s/\s*<<\s*(\d+)/"*" . 2**$1/eg;
+		s/\s*>>\s*(\d+)/"\/" . 2**$1/eg;
+
+# atasm chokes sometimes when there's whitespace around an operator
+#  unfortunately, a construct like `bne *-1' can't afford to lose the
+#  space before the *... why, oh why, does * have to be both multiply and
+#  program counter? *sigh*
+
+#		s/\s*([-!|\/+*&])\s*/$1/g;
+
+# ARGH. Why does dasm allow `byte #1, #2, #3'... and why do people *use* it?!
+  s/^(\s+)\.?byte(\s+)/$1.byte$2/i && do { s/#//g } && next;
+  s/^(\s+)\.?word(\s+)/$1.word$2/i && do { s/#//g } && next;
+  s/^(\s+)\.?dc\.w(\s+)/$1.word$2/i     && do { s/#//g } && next;
+  s/^(\s+)\.?dc(?:\.b)?(\s+)/$1.byte$2/i     && do { s/#//g } && next;
+
+# 20070529 bkw: turn ".DS foo" into ".DC foo 0"
+  s/^(\s+)\.?ds(\s+)(\S+)/$1.dc $3 0 /i     && do { s/#//g } && next;
+
+# I really want to add `hex' to atasm. 'til then though, fake with .byte
+		s/^(\s+)\.?hex\s+(.*)/$1 . '.byte ' .
+			unhex($2)/ie                && next;
+
+		s/^(\s+)\.?subroutine(.*)/$1.local$2/i && next;
+		s/^(\s+)\.?include(\s+)(.*)/$1 . '.include' . $2 . fix_include($3)/gie
+												 && next;
+		s/^(\s+)\.?equ\b/$1=/i       && next;
+		s/^(\s+)\.?repeat\b/$1.rept/i       && next;
+		s/^(\s+)\.?repend\b/$1.endr/i       && next;
+		s/^(\s+)\.?endm\b/$1.endm/i         && next;
+		s/^(\s+)\.?org(\s+)([^,]*).*$/$1*=$2$3/i             && next;
+		s/^(\s+)\.?incbin\b/$1\.incbin/i    && next;
+		s/^(\s+)\.?err(.*)/$1.error$2/i     && next; # TODO: see if atasm allows `.error' with no message.
+		s/^(\s+)\.?ifconst\s+(.*)/$1.if .def $2/i
+														&& next; # TODO: test this!
+		s/^(\s+)\.?else/$1.else/i           && next;
+		s/^(\s+)\.?endif/$1.endif/i         && next;
+		s/^(\s+)\.?if\s+(.*)/$1.if $2/i     && next;
+
+		# stuff that doesn't work:
+		s/^(\s+)(\.?seg(\..)?\s.*)/;;;;; dasm2atasm: `seg' not supported by atasm\n;;;;;$1$2/i
+												 && next;
+		s/^(\s+)(\.?processor\s.*)/;;;;; dasm2atasm: `processor' not supported by atasm\n;;;;;$1$2/i
+												 && next;
+
+		s/^(\s+)sta\.w(\s+)(.*)/;;;;; dasm2atasm: was `sta.w $3', using .byte to generate opcode\n$1.byte \$8d, <$3, >$3/i
+												 && next;
+
+		s/^(\s+)stx\.w(\s+)(.*)/;;;;; dasm2atasm: was `stx.w $3', using .byte to generate opcode\n$1.byte \$8e, <$3, >$3/i
+												 && next;
+
+		s/^(\s+)sta\.w(\s+)(.*)/;;;;; dasm2atasm: was `sty.w $3', using .byte to generate opcode\n$1.byte \$8c, <$3, >$3/i
+												 && next;
+
+		# atasm lacks `align', so make up for it with a macro
+		if(s/(\s)\.?align(\s+)(.*)/$1ALIGN$2$3/i) {
+			if(!$align_defined) { # only gotta define it if not already defined.
+				for($align_macro) {
+					$_ =~ s/^/($linenum += 10) . " "/gme if $linenum;
+					$_ =~ s/\n/\x9b/g if $a8eol;
+				}
+
+				print OUT $align_macro; # no, I wouldn't use these globals in a CS class assignment.
+				$align_defined++;
+			}
+			next;
+		}
+
+		# macros. This is by far the biggest pain in the ass yet.
+		s/(\s)\.?mac\b/$1.macro/i;
+		if(/(\s)\.macro(\s+)(\w+)/) {
+			$mac_regex .= "|\\b$3\\b";
+			$mac_sub = get_mac_sub($mac_regex);
+		}
+
+		if(ref $mac_sub) { # if we've found at least one macro so far...
+			&$mac_sub;      # CAPITALIZE everything matching a macro name
+		}  # note: this code assumes macros are *always* defined before they're
+         # used. atasm requires this, but does dasm?
+
+	}
+	return $line;
+}
+
+## main() ##
+
+$ca65 = 0;
+$a8eol = 0;
+$linenum = 0;
+$recursive = 0;
+
+$cmd = $0;
+
+while($ARGV[0] =~ /^-/i) {
+	my $opt = shift;
+	$cmd .= " $opt";
+
+	if($opt eq "-c") {
+		$ca65++;
+	} elsif($opt eq "-a") {
+		$a8eol++;
+	} elsif($opt eq "-l") {
+		$linenum = 1000;
+	} elsif($opt eq "-m") {
+		$a8eol++;
+		$linenum = 1000;
+	} elsif($opt eq "-r") {
+		$recursive++;
+	} elsif($opt eq "--") {
+		last;
+	} else {
+		warn "Unknown option '$opt'\n";
+		usage;
+	}
+}
+
+if($ca65 && ($linenum || $a8eol)) {
+	die "Can't use line numbers and/or Atari EOLs with ca65 output\n";
+}
+
+$align_macro = <<EOF;
+;;;;;; ALIGN macro defined by dasm2atasm
+ .macro ALIGN
+ *= [[*/%1]+1] * %1
+ .endm
+EOF
+
+$align_defined = 0; # we only need to emit the macro definition once.
+
+$in  = shift || usage;
+$out = shift;
+
+($out = $in) =~ s/(\.\w+)?$/.m65/ unless $out;
+
+die "$0: can't use $in for both input and output\n" if $out eq $in;
+
+open IN,  "<$in"  or die      "Can't read $in: $!\n";
+open OUT, ">$out" or die "Can't write to $out: $!\n";
+
+$hdr = <<EOF;
+;;; Converted from DASM syntax with command:
+;   $cmd $in $out
+
+EOF
+
+for($hdr) {
+	$_ =~ s/^/($linenum += 10) . " "/gme if $linenum;
+	$_ =~ s/\n/\x9b/g if $a8eol;
+}
+
+print OUT $hdr;
+
+if($ca65) {
+	print OUT <<EOF;
+;;; ca65 features enabled by dasm2atasm
+;   To build with ca65:
+;     ca65 -o foo.o -t none foo.asm
+;     ld65 -o foo.bin -t none foo.o
+.FEATURE pc_assignment
+.FEATURE labels_without_colons
+
+EOF
+}
+
+$mac_regex = "!THIS_ISNT_SUPPOSED_TO_MATCH";
+$mac_sub   = ""; # this will be the code ref we call to match $mac_regex
+
+while(<IN>) {
+	chomp;
+	s/\r//; # you might not want this on dos/win, not sure if it matters.
+	$label = "";
+
+	if(/^(\w+)\s*=\s*\1/i) {
+		print OUT ";;;;; dasm2atasm: labels are case-insensitive in atasm\n";
+		$line = ";;;;; $_ ; This assignment is an error in atasm";
+		next;
+	}
+
+# do this before we split out the label:
+	s/^\./\@/;             # local label (dot in dasm, @ in atasm)
+
+	if(s/^([^:;\s]*):?(\s+)/$2/) {
+		$label = $1;
+	}
+
+	($line, $comment) = split /;/, $_, 2;
+	next unless $line;
+	
+	$line = do_subs($line);
+
+} continue {
+	if($linenum) {
+		print OUT "$linenum ";
+		$linenum += 10;
+	}
+
+	print OUT $label if $label;
+	print OUT $line if $line;
+	print OUT ";$comment" if $comment;
+	print OUT ($a8eol ? "\x9b" : "\n");
+}

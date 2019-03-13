@@ -1,0 +1,176 @@
+
+64x34 software text mode needs GR.8 style screen, at 320x204. This
+requires 8160 bytes for screen memory, plus (I think) 214 bytes
+for display list. The initial version will probably use the plain
+GR.8+16 display, and only support 32 rows.
+
+Character cells are 5x6, with glyphs being mostly 4x5 with a blank row
+at the bottom and blank column on the left. Probably for lowercase and
+capital M/m/W/w, I'll hard-code a bit of logic to copy the right-most
+bit into the normally-blank left-most column, so these characters will
+be fully-formed, though they'll touch the char to the left. Doing it
+this way allows packing one row of pixels from 2 different glyphs into
+each byte of glyph-definition table, like COL80 does.
+
+Depending on the design of the final font, it might also be that I can
+avoid storing the bottom row (a few characters might need it to be a
+copy of the top row, or I might get away with hard-coding zero). If
+I'm not storing the bottom row, each 2 glyphs will take up 5 bytes
+of table space (for a 128-character font, that's 320 bytes; for an
+ASCII-only 96-char font, only 240 bytes! That fits in one page, so
+I can simplify the routine that reads it). If I do store the bottom
+row, those numbers become 384 and 288 bytes, respectively. Later on
+if there's support for UTF-8 or whatever, it still might be better
+to use the 240-byte 96-char fonts, but allow for more than one of
+them.
+
+The renderer needs to be able to handle inverse video. It would also be
+nice to support underlining (just force the bottom row of each glyph to
+all 1's), but then there needs to be a way for the calling application
+to set underline mode. Also it might be hard to read... Theoretically
+it'd be possible to do italics too (shift the bottom few rows of pixels
+left), but I think it would come out too ugly to want to use.
+
+Writing a glyph to screen RAM involves a 2-byte buffer for each row of
+pixels. Extract 4-bit glyph data from glyph table, synthesize the 5th
+bit for MmWw, store in the 2-byte buffer (in top 5 bits), then calculate
+how many pixels to shift it, based on the cursor position.  When actually
+writing to RAM, have to load the old data from each of the 2 bytes, mask
+off the appropriate bits, OR in the new bits, store back to RAM. This is
+kind of an expensive operation, but we're only doing it for 6 scanlines
+instead of 8 like COL80 uses, so maybe it'll be fast enough.
+
+If the right mask is $00, we don't have to touch the 2nd byte at all. The
+left mask will never be $00. (algorithm below does touch the 2nd byte though)
+
+leftbyte = int(COLCRS*5/8), easy enough to calculate, but table lookup
+will be faster. If we get tight on space, try it without the table.
+
+shift amounts will be stored in a table. Only 8 entries needed, lookup
+on COLCRS%8.
+
+; first, calculate or lookup the start address of the current
+; screen line, *SAVMSC + (*ROWCRS * 5), and store in rowptr
+; next, calculate or lookup the start address of the corrent
+; glyph, extract the relevant 4 bits (top or bottom nybble) and
+; store in glyphdata bits 2-6 (all other bits 0). Store 0 in glyphdata+1.
+; This is the body of the inner loop... rowptr needs to get 40 added to
+; it every time through the loop.
+ lda COLCRS
+ tax
+ lda left_byte_table,x
+ clc
+ adc rowptr
+ sta zptr
+ adc rowptr+1
+ sta zptr+1
+ ; (zptr) now points to left byte
+ ldy #0
+ lda (zptr),y
+ sta olddata
+ iny
+ lda (zptr),y
+ sta olddata+1
+ ; olddata holds the old screen RAM contents
+
+ lda #$07
+ sta mask
+ lda #$FF
+ sta mask+1
+
+ txa
+ and #$07 ; a%=8
+ tay
+ lda shift_amt_table,y
+ tay ; Y now holds the shift amount
+ beq no_shift
+
+shift_loop:
+ lsr glyphdata
+ ror glyphdata+1
+ sec
+ ror mask
+ ror mask+1
+ dey
+ bpl shift_loop
+
+ iny ; Y = 0
+no_shift:
+ lda olddata
+ and mask
+ ora glyphdata
+ sta (zptr),y
+ iny
+ lda olddata+1
+ and mask+1
+ ora glyphdata+1
+ sta (zptr),y
+
+To calculate screen bytes to alter... COLCRS ranges 0 to 63:
+
+COLCRS - leftbyte - shift amount - leftmask - rightmask
+0        0          0              $F8        $00
+1        0          5              $07        $C0
+2        1          2              $3E        $00
+3        1          7              $01        $F0
+4        2          4              $0F        $80
+5        3          1              $7C        $00
+6        3          6              $03        $E0
+7        4          3              $1F        $00
+8    5
+9    5
+10    6
+11    6
+12    7
+13    8
+14    8
+15    9
+16    10
+17    10
+18    11
+19    11
+20    12
+21    13
+22    13
+23    14
+24    15
+25    15
+26    16
+27    16
+28    17
+29    18
+30    18
+31    19
+32    20
+33    20
+34    21
+35    21
+36    22
+37    23
+38    23
+39    24
+40    25
+41    25
+42    26
+43    26
+44    27
+45    28
+46    28
+47    29
+48    30
+49    30
+50    31
+51    31
+52    32
+53    33
+54    33
+55    34
+56    35
+57    35
+58    36
+59    36
+60    37
+61    38
+62    38
+63    39
+

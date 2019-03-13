@@ -1,0 +1,6 @@
+
+ .include "col80_startaddr.s"
+ .include "col80_header_seg.atasm"
+ .include "col80_main.atasm"
+ .include "col80_dosini_seg.s"
+ .include "col80_runad_seg.s"

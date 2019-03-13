@@ -1,0 +1,54 @@
+
+; If no R: driver is loaded, load DEFAULT.SER
+; Then, load FujiChat
+
+; This is needed because e.g. Bob-verter loads at $5000, smack in the
+; middle of FujiChat's code. This tiny little loader program should be
+; small enough and out-of-the-way enough that nothing will stomp on it.
+
+ processor 6502
+ include "equates.inc"
+
+atari_exec = $0600
+main = $2E00 ; same place as cc65
+
+; segment header
+ org main-6
+ word $FFFF
+ word main
+ word endmain-1
+
+ org main
+
+; search handler table for R entry
+ ldx #0
+tabloop:
+ lda HATABS,x
+ cmp #'R
+ beq load_chat
+ inx
+ inx
+ inx
+ cpx #$24 ; 12 entries * 3 bytes = 36
+ bne tabloop
+
+; no R: driver found, load one
+ lda #<driver_filename
+ ldx #>driver_filename
+ jsr atari_exec
+
+; load main fujichat program (does not return)
+; (in fact it better not return, it overwrites this program!)
+load_chat:
+ lda #<chat_filename
+ ldx #>chat_filename
+ jmp atari_exec
+
+driver_filename .byte "D:DEFAULT.SER", 0
+chat_filename .byte "D:FUJICHAT.COM", 0
+endmain
+
+; segment header
+ word RUNAD
+ word RUNAD+1
+ word main

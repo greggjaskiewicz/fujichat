@@ -1,0 +1,52 @@
+
+ processor 6502
+ include equates.inc
+
+init_routine = $2E00
+
+ org init_routine-6
+ word $FFFF
+ word init_routine
+ word end_init_routine-1
+
+ org init_routine
+
+ lda #0
+ sta COLOR2
+
+ lda RTCLOK+2
+iloop:
+ cmp RTCLOK+2
+ beq iloop
+
+ rts
+
+end_init_routine:
+
+ word INITAD
+ word INITAD+1
+ word init_routine
+
+main_routine = $2F00
+ rorg main_routine-6
+ word main_routine
+ word end_main_routine-1
+
+ rorg main_routine
+
+ lda #$0F
+ sta COLOR2
+
+ lda RTCLOK+2
+mloop:
+ cmp RTCLOK+2
+ beq mloop
+
+ rts
+
+end_main_routine:
+
+ word RUNAD
+ word RUNAD+1
+ word main_routine
+

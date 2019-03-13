@@ -1,0 +1,349 @@
+- 20190313 bkw:
+
+FujiChat is back!
+
+The source is now developed using git, meaning you'll find low-level
+details about changes in the git log. I'll try to remember to update
+this ChangeLog to document major new features and such.
+
+- 20081201 bkw:
+
+Rewrote & reorganized handle_command(). It now lives in commands.c,
+and loops over a table of commands (cmd_list), rather than the old
+messy chain of if/else/if. Moved all the logic for each command into
+their own cmd_whatever() functions (the addresses of which are in the
+table). Not only did this save a couple hundred bytes of object code,
+it also means adding new commands is less expensive.
+
+Instead of telnet_send(tstate, serv_msg_buf, strlen(serv_msg_buf)) strewn
+about the code, there's now a send_serv_msg_buf(void) function. Rather
+than use strlen() to calculate, we set the new serv_msg_buf_len variable
+to the length... which works out great as almost all the telnet_send()
+instances were preceded by a sprintf(), which already returns the length
+(was just throwing away the return value! Old habits...)
+
+Added /fgcolor and /bgcolor commands (enable with FEAT_COLOR_COMMAND).
+These don't change the colors in the config, and they get reset before
+every new IRC connection, but it does mean you don't have to reload the
+config menu to try out new colors. Especially important for COL80 users,
+since it takes some fiddling to find a color set that looks good on your
+monitor (if you can!)
+
+Completely removed all attempts to do a software cursor when
+FEAT_COL80_HACK is enabled. It wasn't working anyway, and needs further
+thought before hacking away at it any more (should the COL80 driver
+respond to CRSINH at 752, like the real E: does?)... Actually it's
+perfectly usable without the cursor anyway, you always know where you
+are because you're always at the bottom of the screen. When/if arrow
+key editing is supported, there will have to be a cursor...
+
+
+- 20081130 bkw:
+
+More major surgery: there's now a hacked-up, cut-down version of the
+old COL80 driver, and Fujichat support for it. FEAT_COL80_HACK, which
+defines its own set of features. Currently the code is a mess of #ifdefs,
+but working (still some issues with the cursor not working right in 80
+cols). The 4x8 font is a slightly modified version of Itay Chamiel's
+Ice-T font (characters 32-127 only, I made the ampersand and the capital
+N look more like I expect them to). Current version of col80 uses the
+cassette buffer for a private input buffer for CIO get calls, but
+it could just as well use input_buf (though it can't know where that
+is, unless FEAT_LOW_RAM_BUFFERS is also enabled). So far, COL80 hack
+only tested with Bob-verter. Scroll speed is slower than Ice-T or
+E80/ACE80, but TCP has those pauses built into it... someone needs
+to try it at 9600 baud. An interesting thing about COL80 is that
+it's not limited to 128-char fonts (neither is Ice-T, Itay does a
+full 256-char set)... unicode anyone? SW underlining?
+
+Got rid of redraw_buf (was at $2800), calling fuji_putchar() in a loop
+is about as fast as fputs() a whole string. Allows user an extra page
+in low memory, unless I find a burning need to use it for something
+else...
+
+- 20081127 bkw:
+
+Expunged putchar() and cgetc(), from fujichat.c, gained over 200 bytes
+(replaced with "indirect JSR" technique using put/get address-minus-one
+in OS ROM). BSS now ends at $9515. We almost have enough room for an
+80-column software driver (the stack is 2K, so MEMTOP needs to be $9d15
+or higher since we don't use the heap). Default GR.0 setup, MEMTOP
+is $bc1f, which is where the stack starts (and grows downward for 2K,
+ending at $b41f).  $B41F minus $9515 is 7946 bytes, almost 8K. In GR.8
+mode, MEMTOP is $A04F. Subtract $9515 (end of BSS), add 2K ($9D15,
+end of stack). Subtract from $A04F and we get $33a, or 826 bytes. This
+is not enough room for a GR.8 software 80-column driver's code + font
+(COL80E uses more like twice that), but it's a whole lot closer than
+FujiChat 0.4 was.
+
+Strip leading colons from the text of server messages.
+
+BSS at $977E (got rid of cursor() and replaced cgetc() with version
+that doesn't contain setcursor junk (we don't want to ever disable
+the cursor). In fact conio.h is gone now.
+
+Expunged fread() from common.c (replaced with read()), gained over
+1/2K.
+
+Made TCP listen support optional in uIP, and turned it off for
+FujiChat. This save about 1200 bytes in the binary.
+
+Starting to rewrite bits in asm. I've got the end of the BSS
+down to $97ED now, and I've barely started...
+
+Fixed bug in config_is_valid() that made fujichat always use
+built-in defaults. Thanks to Beetle for spotting this.
+
+- 20081126 bkw:
+
+Renamed menu.com to fujimenu.com (apparently on SpartaDOS X,
+trying to load D:MENU.COM ends up loading CAR:MENU.COM instead).
+Thanks to Beetle for spotting this.
+
+makeauto.com now cats the serial driver and loadmenu.com (instead
+of menu.com) to make autorun.sys. Saves like 70 sectors on the
+disk image.
+
+Added some test code (FEAT_UNICODE_TEST) that converts an input ctrl-P
+(clubs symbol) into the UTF-8 sequence for a Unicode "card suit clubs"
+symbol. It looked fine in irssi with univga font, but for some reason 3
+other people saw it as a spades symbol... Eventually it'd be possible to
+have a little table to convert all the ATASCII graphics chars into UTF-8
+on keyboard input, and convert the UTF-8 versions back into the ATASCII
+chars on screen output. Thanks to Redb3ard for coming up with the idea
+and doing the research on this... though it can't be fully implemented
+any time soon (FujiChat needs to go on a major diet before I add any
+more features, I'm running out of RAM).
+
+
+- 20081125 bkw:
+
+Added keyboard buffer. Needs lots of testing, but initially appears
+to work OK (FEAT_KEYBOARD_BUFFER)
+
+Added autojoin to fujichat.
+
+Rearranging things. The Atari 850 driver *crashes* if it's loaded
+from the DOS menu even (it *has* to be autorun.sys), so instead
+of the default.ser and such, the RS232 driver + menu now get
+catted together to create an autorun.sys (and the user is asked
+to reboot, to load it).
+
+Added auto-away on attract mode
+
+Added alt_nick and timezone fields to cfg file (not used yet),
+bumped CONF_VERSION.
+
+Rearrange fujichat numeric server message stuff, add autojoin capability.
+Also add autojoin prompt to fujiconf.
+
+Change the leading character for local message from * to > (e.g.
+"> Registering Nick"), and privmsgs to us now show up as
+"-> <nick> message"
+
+- 20081120 bkw:
+
+Fixed bug in conf menu (IRC server was getting reset to the first in the
+list if the user hit Return, instead of keeping his existing one). Thanks
+to Slor for spotting this.
+
+Added (attempted) 19200 baud support. cc65 doesn't define RS_BAUD_19200 in
+rs232.h. Slor suggested defining it as 0x0f (since the baud rate constants
+run 0x00 to 0x0e). It almost works: FujiChat is able to send & receive,
+but even with hardware handshaking, it can't keep up (lots of incoming
+packets get dropped, and the connection eventually stalls). Since Slor's
+HW handshaking is known to work (he can do 9600 baud reliably, and runs
+unpatched slattach without -L), I assume the trouble is that the loop
+in rs232dev.c is too slow. Recoding it in asm may help. It may have to
+use SIO instead of CIO though... or would that make it HW-specific?
+Guess it would.
+
+Added (bloated implementation of) ping time calculation. In the ping
+request, we send the contents of the 3 bytes of RTCLOK, and when we get
+them back, we subtract them from the current RTCLOK value and format
+as number of seconds + 10ths of seconds. Code uses CLOCKS_PER_SECOND,
+which means it auto-adjusts for PAL vs. NTSC timing. If RTCLOK rolled over
+between request & response, it'll appear to be a huge negative number...
+but I think uIP fails when RTCLOK rolls over anyway. Most people won't
+leave their Atari up for 3+ days anyway I guess.
+
+Clean up the raw IRC protocol server messages. We now strip the server
+hostname, parse numerics, and (for a few numerics) print meaningful
+message like "Topic". This could use a lot more work, but it does save
+our limited screen space.
+
+Implemented UIFLAG_HIDE_MOTD in fujichat.c. The traffic indicator still
+appears, to let the user know something's going on. Initial pre-MOTD
+server messages are not suppressed.
+
+- 20081119 bkw:
+
+*Major* surgery! The patient's vitals are strong, and the operation
+is a tentative success.
+
+fujichat's config menu has been split off into a separate executable.
+This keeps the menu from sitting around taking up memory while we're
+actually chatting. Also it paves the way for a fancier config menu with
+more options and a nice UI.
+
+While I was at it, I added a top-level menu program and an "about"
+option, with a separate viewer program that's a simple version of "more"
+from UNIX.
+
+All the programs (fujichat, fujiconf, menu) are able to load & run
+each other thanks to aexec (aka atari_exec()). This is a teensy little
+binary-file loader that fits into page 6, and gets prepended to
+all the other programs.
+
+Also, the Bob-verter driver is no longer baked into fujichat. Instead,
+we've got a tiny little loader called "loadchat", which does this:
+
+- Check for the existence of an R: device in HATABS
+- If not found, load the file DEFAULT.SER (ignoring "file not found")
+- Load fujichat.com
+
+DEFAULT.SER is just a binary load file. By default it'll be a copy
+of Bob-verter (also there's a copy called BOBVERT.SER).
+
+The config menu (fujiconf) allows the user to choose which serial
+device he has (by user-friendly name), and copies the appropriate
+driver (named something.SER) to DEFAULT.SER. Nota bene:
+
+- The driver is only loaded when the user chooses to run FujiChat
+itself, from either menu.com or fujiconf.com
+
+- If the driver setting gets changed before any R: driver is loaded,
+loadchat will load the new driver.
+
+- The menu allows the user to type a filename, to use a driver not
+in the built-in list (which is good as it's not a very complete
+list yet)
+
+- The menu also allows "none" as a choice, meaning he's taking
+responsibility for providing an R: handler himself (e.g. as an
+AUTORUN.SYS, or loaded from a SpartaDOS batch file or whatever).
+In this case, DEFAULT.SER will be deleted, and loadchat will
+silently fail to load it, and then FujiChat will just use the
+preloaded R: handler (or if it's missing, it'll give an error
+and let the user go back & reconfigure).
+
+- The way this is set up, it means the user can just use fujichat.com
+as a standalone executable, without the presence of menu.com, loadchat.com,
+fijuconf.com, or any other stuff from the disk. He can prepend his
+R: handler to it and load it from anywhere. It'll use the default
+config, but that's OK (most people would set up their SLIP host
+with the defaults anyway). He'll have to enter his server every
+time, and use /nick, but the program will *work*.
+
+- It's also possible to run fujiconf once to create a config file, then
+copy fujichat.com and fujichat.cfg to some other disk or directory
+or whatever, and run it without having the menu/loadchat/fujiconf/etc.
+The only missing capability is that he can't create a new config file.
+
+- The de luxe option: it should be fully possible to copy the contents
+of the FujiChat floppy image to a MyDOS or SpartaDOS subdirectory
+(obviously don't copy autorun.sys, dos.sys, dup.sys). All the filenames
+used by the program begin with D:, not D1:, so they should use the
+current drive and directory. (Eventually I'll write an INSTALL.COM
+that makes the directory & copies the stuff for you!)
+
+Other changes:
+
+Break key is now disabled. No more accidentally sending a line when
+you meant to hit Backspace.
+
+There's now a tiny AUTORUN.SYS that finishes the DOS boot stuff, then
+runs MENU.COM (the main menu) for us.
+
+MENU.COM, FUJICONF.COM, and FUJICHAT.COM all look in page 5 for the
+config, which stays resident when switching between programs. If it's
+not there, they all try to load it from FUJICHAT.CFG. If that fails,
+they use built-in defaults.
+
+FujiChat (FUJICHAT.COM) *can not* create FUJICHAT.CFG itself.
+
+Had to use memcpy() instead of Adam's uip_sethostaddr() and
+uip_setdraddr() macros (they have trouble when their arguments are
+dereferenced pointers; probably this is a deficiency in cc65).
+
+The config menu is a lot more user-friendly. It stops the user from
+setting unreadable colors (where fg/bg have equal luma values), and
+the long, long list of questions is broken up into sections.
+
+rs232dev_init() now returns a status. If it's not RS_ERR_OK, something
+went wrong. If this happens, FujiChat allows the user to retry,
+run fujiconf, or exit to DOS.
+
+I won't be providing single-file .xex downloads any more. The ATR image
+will be the main distribution (possibly I'll also offer the contents
+in a zip file, for S-Drive or MyIDE users). The main executable still
+works standalone, but is not fully functional, so I'd rather discourage
+'noobs' from running it that way (non-noobs know how to extract the
+.xex from the .atr image themselves).
+
+Changed uip-conf.h, now uIP is compiled with support for only one
+TCP conn, one UDP conn, and one TCP listen port (TCP listen support
+isn't disable-able in uIP; I'll change that later). Also disabled
+UDP checksums.
+
+Added FEAT_* macros to remove some FujiChat features at compile time.
+See fujichat.c for the list of features and how much code space they
+take up.
+
+Added network traffic indicator in upper right corner of screen:
+up arrow for transmit, down arrow for receive. FEAT_TRAFFIC_INDICATOR
+
+/j or /join with no argument now tries to rejoin the current channel
+(use if you get kicked). Also, fixed bug where /j with no argument
+tried to join a bogus (null) channel.
+
+/nick now tracks your nick changes. This fixes the bug where, after
+a nick change, private messages to your new nick appear to be
+channel traffic.
+
+
+- 20081116 bkw:
+Fixed bug in 0.3.0 (ctcp responses didn't work when a ctcp request came
+back in the middle of typing a line)
+Made baud rate selectable in the UI (there was already a config file entry
+for it)
+0.3.0 released
+Added ^W and ^U (delete last word, delete-line, emacs-style)
+Added simulated edit buffer using delete-line and cursor controls. This
+isn't as nice as a custom display list, but it stays compatible with (most)
+80-column drivers.
+Added option to run config menu from the "return to connect" prompt, got rid
+of "Use defaults [y/n]" prompt.
+Added support for selecting the server port (default still 6667)
+Added support for real name field
+We now close the serial port when disconnected (needed for the config menu
+to be able to save to disk, at least with bob-verter driver)
+
+- 20081115 bkw:
+Changed uIP packet buffer size to 576. This will help with those DNS aliases
+that return 15 hostnames + aliases (like irc.freenode.org). TCP MSS is still
+set to 160 - header_len, to keep it feeling like an interactive app.
+
+strcmp against config.nick changed to strcasecmp, so we can correctly
+handle messages/ctcps to the lowercase (or whatever) version of our nick.
+
+Added option to enter an IRC server instead of just "press return
+to connect". The default is the config file server, or last server
+connected to.
+
+- 20081113 bkw:
+0.2 released
+Added option to exit to DOS
+FujiChat now works with FreeNode (mostly)
+Made local/peer/DNS IP configurable
+Server hostname now configurable
+UI flags configurable: visual bell, no bell, msg bell, show ping
+Default server list is now hostnames
+Consolidate some UI I/O code
+Initial support for DNS resolution
+
+- 20081112 bkw:
+Added visual bell support
+Added ` (backtick) support (prints as inverse single quote)
+
+- 20081105: 0.1 released

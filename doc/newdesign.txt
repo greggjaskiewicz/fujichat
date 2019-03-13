@@ -1,0 +1,81 @@
+/* TODO: move the non-IRC-related config to a separate SETUP program,
+	and a separate UIP.CFG file. This will be shared by all apps that
+	use uIP, such as the planned telnet and FTP clients. Also it means
+	we don't have to bloat each program with a complete config UI
+	for things like the local/peer/DNS IP addresses.
+
+	In fact the SETUP utility might resolve IP addresses for us, so
+	each app might not need its own copy of the resolver... though
+	that's maybe a bit clumsy to use for FTP, since you generally want
+	to easily be able to connect to arbitrary servers (unlike, say, IRC
+	where you usually use the same server all the time). Perhaps SETUP
+	could resolve arbitrary hostnames, then write them to a /etc/hosts
+	type of file. Parsing /etc/hosts entries is fairly lightweight,
+	could be done in all the client programs...
+
+	...or maybe what should happen is that there should be a RESOLV
+	program that can resolve hostnames, and read/write them in text
+	form to a HOSTS.TXT file... and also parses the HOSTS file and
+	stores the hostname strings and 4-byte IP addresses in a fixed
+	area of memory. The app programs could just look up hostnames in
+	this memory area, without having to open & parse HOSTS themselves.
+	cc65 programs by default start at $2E00. The Bob-verter driver ends
+	around $2200 (other R: drivers should be comparable), which gives
+	us around 3K of unallocated memory. Assuming the average hostname/IP
+	pair is 50 bytes, that'd give us about 60 of them. The RESOLV program
+	would stop the user from adding more hostnames when there's no space
+	for them (and let them delete some to make room, maybe commenting them
+	out so they remain in the HOSTS file for future uncommenting).
+
+	Ultimately there should be a master AUTORUN.SYS file with a menu
+	that runs the other sub-apps (or lets you exit to DUP). Menu would
+	have options like "DNS", "IRC", "FTP", "Telnet", and "Network
+	Setup". Of course I need to write a program loader, there's no
+	exec* functions in cc65! The Network Setup option would let you
+	specify the R: driver you want to load, so it wouldn't have to
+	be prepended to any of the executables, and would be auto-loaded
+	the first time you try to run any of the apps that need it. It'd
+	be nice if the main menu program had at least a few DOS functions
+	as well (delete/copy/rename/lock/unlock, format too?)
+
+	Probably, FujiChat's 1.0 release will be as a standalone IRC client,
+	with the current config UI stuff as-is. The other stuff would be
+	released months from now, under the label "FujiNet" or something, and
+	include a new version of FujiChat as one of several apps.
+
+	The final distibution disk will need at least some documentation in
+	Atari-readable text format, plus a doc-reader program.
+
+	All the subprograms need to end with RTS to the menu program, which
+	shold be small and stay resident in addresses not touched by cc65
+	(I've got 128 bytes each in the cassette buffer and page 5, also
+	256 more in page 6. Should be easy to squeeze into 512 bytes, no?)
+
+	So a disk directory would contain:
+
+	DOS.SYS, DUP.SYS
+	AUTORUN.SYS - the main menu and subprogram loader
+	BOBVERT.XEX - the Bob-verter R: driver
+	A850.XEX - the 850 R: driver (from DOS 2.0S I guess)
+	MIO.XEX, BLACKBOX.XEX, etc, drivers for other serial ports
+	HOSTS.TXT - the /etc/hosts file, human-readable and -editable
+	README.TXT - docs
+	MORE.XEX - doc reader (should handle ASCII or ATASCII EOLs)
+	SETUP.XEX - set up global network settings (local/remote/dns IPs, also
+	            things like screen colors, key-repeat rate, etc).
+	DNS.XEX - lookup hostnames, maintain and parse HOSTS.TXT
+	FTP.XEX, TELNET.XEX, IRC.XEX, PING.XEX - the apps
+	FTP.CFG, TELNET.CFG, IRC.CFG, etc - app-specific settings
+	FUJINET.CFG - global settings
+	...if there's room on the disk, a small text editor might be nice
+	to include.
+
+	The whole thing should be distributed as a bootable, single-density
+  	DOS disk (undecided which DOS, either 2.0S or MyDOS 4.5).
+
+	Alternatively, all the XEX files might be named COM, and the whole
+	thing could run under a CLI DOS like Sparta (if it'll actually
+	run). The apps could take optional CLI arguments, also... and the
+	AUTORUN.SYS would actually be unnecessary!
+
+ */

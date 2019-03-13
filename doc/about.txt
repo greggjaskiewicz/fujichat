@@ -1,0 +1,35 @@
+# Try to keep the lines <= 39 chars,
+# but the reader can handler up to 199 char/line.
+# Comment lines (like this one) are ignored.
+FujiChat: an Atari 8-bit IRC client
+(c) 2008 B. Watson (aka Urchlay)
+
+Version 0.4, 20081019
+
+This program includes the uIP TCP/IP
+stack, (c) Adam Dunkels.
+
+Bob-Verter driver (c) 1989, Bob Puff
+
+[insert legalese krap here]
+[more legalese]
+[it's going to take up a few lines]
+[...]
+[...]
+[I hate legalese]
+
+[Long line that should be handled correctly by the line-counting logic. It's 3 screen lines.]
+
+Special thanks to the FujiChat alpha
+testers:
+
+- Beetle
+- charliec
+- SteveS
+
+...and the rest of the NewNet #atari
+crowd.
+
+Stop by #atari sometime and say hi,
+everyone's welcome!
+

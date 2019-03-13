@@ -1,0 +1,161 @@
+How to run a TCP/IP stack on an Atari 8-bit
+-------------------------------------------
+
+You will need:
+
+1. An Atari 8-bit computer with at least 48K of RAM
+2. A Linux box with:
+3. A recent snapshot of cc65. 2.12.0 won't work. I used 2.12.9.20080831.
+4. SLIP support in your Linux kernel (try "modprobe slip")
+5. Some way to get an Atari program from your Linux box to your Atari, so
+   you can run it. I use an SIO2PC cable and AtariSIO, and "axe" for
+   writing files into an ATR image.
+6. An RS232 serial interface for your Atari. I use the same SIO2PC cable
+   as (5) for this. Other possibilities are an 850, P:R: Connection,
+   R-Verter, etc.
+
+
+Before building the Atari program, you should get a copy of the R:
+handler (device driver) that's needed for your Atari to talk over the
+serial port, and copy it to rhandler.xex in the source directory. In
+general, whatever R: handler you use with Bobterm or Ice-T will work
+fine. The shipped copy of rhandler.xex is the Bob-Verter driver, which
+works great with an SIO2PC cable.
+
+Run "make" to compile and "make disk" to build the ATR image uiptest.atr.
+This is a bootable disk with DOS 2.0S and the uIP demo program as
+AUTORUN.SYS (with R: handler prepended to it).
+
+Boot the disk, wait for it to finish loading. You should see "Press Return
+to connect". At this point, you should start SLIP on your serial port,
+then press Return on the Atari. If you've done everything right, the Atari
+should connect to the remote host!
+
+What you have to do to start a SLIP interface depends on what you're
+using as a serial interface on the Atari, and whether it's the same
+device as you'll use to load the code into the Atari. Most motherboards
+these days have only one serial port (if any), so if you're doing drive
+emulation, you'll have to switch between the drive emulator software
+(e.g. atariserver) and SLIP mode on the same serial port (or run drive
+emulation on one machine and SLIP mode on a second). If you're lucky
+enough to have two serial ports on your Linux box, and own an SIO2PC
+and an 850 or other Atari RS232 interface, you can run SLIP on one Linux
+serial port all the time and atariserver on the other all the time.
+
+Note: atariserver will NOT work with USB-to-RS232 adaptors. sio2linux
+theoretically might, but in practice usually doesn't. It *should* be
+possible to run SLIP over a USB adaptor though (but I haven't tried it).
+
+Another note: For some reason, the uIP code doesn't run if it's loaded
+from MyPicoDOS (the built-in loader in atariserver). This is why you
+need to create an actual DOS ATR image for use with atariserver.
+
+
+850, P:R: Connection, R-Verter, or "dumb" SIO2PC as serial device
+-----------------------------------------------------------------
+
+To start SLIP mode on your Linux machine's serial port, you should be able
+to use the "slattach" that came with your system. If you don't have this
+program installed, you'll have to find out what package it belongs to
+(on Slackware and Debian, that's the net-tools package, and it's highly
+unlikely that it wouldn't already be installed).
+
+Actually, slattach won't work if your R: device doesn't have the hardware
+handshaking lines connected (this is true of the SIO2PC, and for most
+other devices it depends on how your cable was made). From slattach's
+documentation, it looks like the -L option (local mode, no HW handshake)
+should work, but it won't due to a bug in slattach. You can use the
+patched version (see next section) if you don't have HW handshaking.
+
+The start_slip.sh script does everything that's needed to fire up a SLIP
+connection for uIP to use. There are some config options at the top of
+the script (to set the port, baud rate, etc), make sure these are correct.
+
+If you've got working hardware handshaking, you should be able to do
+9600 baud. This has been tested on the 850 and works well. 19200 may
+even work, if your device & driver support it. Without handshaking,
+the maximum reliable speed seems to be 4800 baud (you could try 9600,
+but it probably won't work). Speed isn't really *that* important for
+IRC anyway.
+
+
+Auto-sensing SIO2PC as serial device
+------------------------------------
+
+If using a Steve Tucker SIO2PC (the auto-sensing kind), slattach has to
+be patched slightly. Get net-tools-1.60, patch it up to 1.60-19, then
+apply slattach_rts.diff. Compile net-tools, copy slattach to someplace on
+your PATH (don't overwrite the one in /sbin or /usr/sbin! I renamed my
+patched version to a8_slattach). You can find the net-tools-1.60 source
+and the 1.60.19 patch here:
+
+ftp://ftp.slackware.com/pub/slackware/slackware-12.1/source/n/net-tools
+
+(Note: you don't have to be running Slackware to use the sources,
+that's just a handy place to download them from)
+
+Run "make" to build. It'll ask you a lot of questions about what protocols
+& hardware your system supports; the answers are not too important,
+so long as you say yes to SLIP support and TCP/IP. Don't do a "make
+install", just copy slattach somewhere like /usr/local/bin/a8_slattach
+
+
+Using the same serial port for drive emulation and SLIP
+-------------------------------------------------------
+
+If using atariserver, you have to load & unload the atarisio module,
+it won't play nice with SLIP. Use atariserver_slip.sh (which can be
+configured a bit by changing the variables at the top). If you prefer, you
+could use sio2linux instead of atariserver, but it's slow and occasionally
+just fails to work on my system. If sio2linux works OK for you, it's
+easier to deal with because it just uses the serial port device instead of
+loading a kernel module that "takes over" the port the way atarisio does.
+
+
+Other hardware
+--------------
+
+If you've got some other way to get the code to your Atari that doesn't
+involve a serial port (such as a MyIDE or S-Drive, or maybe a Black Box
+with removable media, or just another Linux box with its own serial port),
+you can run start up SLIP on your serial port with start_slip.sh and
+leave it running forever. Unlike PPP, the SLIP protocol doesn't really
+"connect" to the other side of the serial line, so there's no need to
+restart SLIP if you reboot the Atari.
+
+
+Other OS
+--------
+
+If you aren't running Linux, you can still use SLIP.
+
+- Free/Net/OpenBSD: follow the Handbook for setting up a SLIP connection,
+  plus NAT or Masquerading (whatever the BSD terminology is).
+  Unknown whether it'll work without hardware handshaking.
+
+- Mac OS X: has slattach, which appears to be the same as the Linux version.
+  Unknown whether it'll work without hardware handshaking. No idea whether
+  OSX supports NAT/masquerade (bet it does though).
+
+- Windows: in theory it's possible to either use SLIrP with Cygwin, or
+  else the built-in "Direct Cable Connection" (which exists in at least
+  Windows 98 through XP, but has been dropped in Vista). You'd want to
+  enable "Internet Connection Sharing", too.
+
+  It also should be possible to run SLIrP on a TCP port on either your
+  Windows machine or some other host, and configure APE's R: TCP/IP
+  emulation to connect to this host and port. In effect you'd be running
+  SLIP over TCP.
+
+  Yet another way to use uIP with Windows would be to use a virtual (emulated)
+  machine running Linux (e.g. using qemu or possibly VirtualBox). At least
+  one user has successfully done this.
+
+- Some "serial terminal server" devices may support SLIP. I'm pretty sure
+  at least one model made by Lantronix does. If you have one of these,
+  let me know how (or if) it works.
+
+NOTE: If your OS has "Compressed SLIP", "CSLIP", "VJ Compression", or any
+SLIP-related option named similarly, DISABLE it. uIP does not support
+compressed SLIP.
+

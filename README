@@ -1,0 +1,191 @@
+FujiChat - an Atari 8-bit IRC client.
+
+Features:
+
+- Join and chat in an IRC channel (only one at a time, for now).
+- Send and receive private messages to/from other users.
+- Runs a TCP/IP stack on the Atari, including TCP, DNS, and SLIP.
+- Works with all Atari 8-bit computers (400/800/XL/XE) provided they
+  have at least 48K of RAM and a supported RS232 port.
+- Works with SIO2PC, Atari 850, or ICD P:R: Connection RS232 ports.
+- Supports up to 9600 baud serial connection (depending on hardware used).
+- Fully open source (BSD licensed).
+- Ready-to-boot ATR image also supplied (fujichat.atr).
+
+Contents:
+
+README - you're reading it now.
+doc/   - documentation, including (possibly obsolete) design notes.
+src/   - FujiChat source, excluding uIP library.
+uip/   - Modified/hacked-up version of Adam Dunkels' uIP, used as a library.
+
+To compile FujiChat:
+
+- First, install cc65.  Needs to be a snapshot or release later than the
+  2.11.0 release, but older than about December, 2015. Version 2.13.3 is
+  what the author currently uses. The code uses the old cc65 rs232.h API,
+  which was replaced with a new serial.h API sometime in 2015. This will
+  be rectified eventually.
+
+- Next, install axe. This can be found at http://urchlay.naptime.net/repos/axe/
+  or use the clone URL git://urchlay.naptime.net/axe.git
+
+Make sure cc65 and axe are both found in your $PATH, then:
+
+$ cd src
+$ make
+$ make disk
+
+This will build an ATR image called fujichat.atr. This is a bootable image
+with DOS 2.0S and everything you need to run FujiChat. See doc/README
+for more detail.
+
+Running FujiChat:
+
+fujichat.atr is a bootable DOS 2.0S floppy disk. It must be booted with
+BASIC disabled (remove cartridge on 400/800/1200XL, hold Option down
+on XL/XE).
+
+The first time FujiChat boots, it'll ask what serial port driver you
+want to use. Once you've selected this, you'll be prompted to reboot.
+It's not recommended to choose 1 (no driver/manual setup); this option
+exists mainly for testing.
+
+After the serial driver has been selected, FujiChat will boot into
+its main menu. The first thing you'll want to do is choose S for Setup.
+You'll be prompted for all the settings. The main ones are:
+
+- Baud rate. 4800 is the "safe" choice here, and works on most hardware.
+  9600 baud may or may not work for you. 19200 baud probably won't work
+  for anyone (yet?)
+
+- Local IP address and Peer IP address. You shouldn't have to change
+  these (just press Enter for the defaults), *unless* your LAN is
+  already using the 192.168.0/24 net block! If this is the case, try
+  10.0.0.1 and 10.0.0.2 for these.
+
+- DNS server. Most people will enter their ISP-assigned DNS server here.
+  In a pinch, you might try 8.8.8.8 (Google's public DNS server).
+  If you run DNS service on your local Linux/whatever system, you can
+  use the same IP as you entered for Peer IP address here.
+
+- IRC server. You can choose one of the listed servers, or enter any
+  hostname or IP address instead.
+
+- Server port. Normally 6667. Some servers may support other port numbers,
+  but there doesn't seem to be any real advantage to using them. Do NOT
+  enter the port number for secure IRC here; FujiChat does NOT support
+  SSL/TLS encryption (and never will: the Atari would take a week to
+  do the math needed to initiate a secure connection).
+
+- Your nickname. The name you want to be known by, on IRC. This should
+  be a short name, and different IRC networks allow different lengths. All
+  networks allow at least 9 characters here, and FujiChat is limited to
+  20. If you're new to IRC, you should know that spaces are not allowed
+  here, and only some punctuation is allowed. Best bet is to stick with
+  alphanumerics. Mixed case is allowed (you could be johnsmith, Johnsmith,
+  or JohnSmith). Try to choose a name unlikely to already be in use.
+
+- Your 'real' name. This is visible to all users on IRC, so you probably
+  don't want to put your *real* name. The default is "FujiChat User", which
+  is fine. Unlike the nickname, this doesn't have to be unique.
+
+- Autojoin channel. If you enter 0 here, FujiChat won't automatically join
+  any channel (you would use the /join command after connecting, instead).
+  Normally channel names are prefixed with a # (e.g. #atari), but on
+  Freenode, some channels have two # instead (e.g. ##atari). If the
+  channel you want to join requires a NickServ login or similar, don't
+  try to autojoin it. You'll have to connect, then manually authenticate
+  (e.g. /m NickServ id <username> <password>), then manually join
+  the channel.
+
+- Background and foreground colors. Standard decimal Atari color register
+  values (hue * 16 + luminance). The defaults are 192 and 12, which gives
+  a dark green background with very bright green text.
+
+- Disable bell. FujiChat is capable of using either the regular Atari
+  "buzzer" audio bell, or a visible "bell" that briefly flashes the
+  border color. Saying Y here disables both visual and audio bells.
+
+- Visual bell. When you say Y here, you'll get the visual bell described
+  above, and no audio bell. If you say N, you'll get the audio bell.
+
+- Bell on msg. If you like to be notified when you get a private message,
+  say Y here. If you find this annoying or distracting, say N.
+
+- Show ping/pong. Default is N, and most people will want to leave it this
+  way. Every few minutes, the IRC server sends a "ping" to FujiChat (or
+  any other IRC client), and FujiChat responds with a "pong" to let the
+  server know it's still "alive". If the pong never arrives, the server
+  assumes the client is dead, and drops the connection. Showing the
+  ping/pong messages is probably only useful for development/testing; in
+  normal use they just waste screen space.
+
+- Hide MOTD. Every time you connect to an IRC server, it sends you a
+  "message of the day", which contains lots of general info about the
+  IRC network. Unfortunately, on some networks, the MOTD is really
+  long and verbose, and takes several minutes to receive and display
+  on the Atari. There's no way to prevent the server sending the MOTD,
+  and the server won't respond to commands (such as joining a channel)
+  until it's done sending the MOTD. However, hiding the MOTD (not
+  printing it) will speed up connection times, because the Atari isn't
+  very fast at printing text and scrolling its sreen. Leave this option
+  enabled, unless you're very curious about what's in the MOTD (and
+  also very patient).
+
+- Is this correct [Y/n]. If you made a mistake entering one of the
+  settings, say N here and you'll get a chance to re-enter them.
+
+- Save this config [Y/n]. Normally you'll say Y here, to save the config
+  to D:FUJICHAT.CFG. If you're just testing a different config, you can
+  say N. The config will remain in memory and FujiChat will use it. If
+  you reload the setup/config program from within FujiChat, the settings
+  from memory will be used as defaults for the prompts.
+
+- Start FujiChat now [Y/n]. Does just what it says. If you're using the
+  SIO2PC for both disk emulation and RS232, wait for FujiChat to finish
+  loading (it'll show a "connect to server" prompt), then exit your disk
+  emulation software (or e.g. "stop emulation" in Respeqt), then run the
+  start_slip.sh script (or whatever else you use to start SLIP service
+  on your PC/Mac/whatever). Press Enter to connect to the IRC server,
+  and if you did everything just right, it should Just Work...
+
+Notes:
+
+Docs for uIP have been removed from this distribution, partly to save
+space, and partly because the included version of uIP has been modified.
+If you want to write a new app using uIP, you're better off starting
+with the original sources, not my hacked-up mess.
+
+Limitations:
+
+As said before, FujiChat is only able to join one IRC channel at a time.
+
+If your channel requires authentication with e.g. Freenode's NickServ
+before being allowed to join it, you'll have to configure FujiChat
+*not* to auto-join the channel. Once connected, you'll have to manually
+authenticate, then manually /join the channel.
+
+A lot of features found on IRC clients for more modern systems just
+don't exist, either because of limited memory on the Atari, or because
+the author just hasn't gotten around to adding them yet. There's no nick
+list, logging, multiple windows, scrollback, triggers... channel text
+from channel operators doesn't show an @ next to their nick... nick
+completion (tab completion) doesn't exist, although you *can* use the
+Tab key to respond to the most recent user who sent you a PM.
+
+There are known bugs in FujiChat:
+
+The /msg command (and several others) doesn't correctly quote its
+argument, which means if you say "/msg somebody Hello, I'm on my Atari",
+they'll receive only the first word (the "Hello,"). Temporary workaround:
+say "/msg somebody :Hello, I'm on my Atari" (in other words prefix your
+message with a colon).
+
+The /ping command doesn't play nice with modern FreeNode servers, meaning
+you get either no ping responses, or else it prints a ping time >= 2500
+seconds.
+
+Not really a bug, but a missing feature: non-ASCII characters (accented
+letters, British pound symbol, etc) are printed as inverse video
+gibberish. At some point these will be handled more gracefully.

@@ -1,0 +1,27 @@
+
+ processor 6502
+ include equates.inc
+
+main = $6000
+
+ org main-6
+ word $FFFF
+ word main
+ word end_main-1
+
+ org main
+
+ lda #<filename
+ ldx #>filename
+ jsr $0600
+ lda #$08
+ sta COLOR2
+ rts
+
+filename: byte "D:AEXTEST.XEX", $00
+
+end_main:
+
+ word RUNAD
+ word RUNAD+1
+ word main

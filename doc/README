@@ -1,0 +1,396 @@
+FujiChat v0.1: An IRC client for the Atari 8-bit
+-------------------------------------------
+
+FujiChat is a simple IRC (Internet Relay Chat) client for Atari 8-bit
+(400/800/XL/XE) computers, based on the uIP TCP/IP stack. It uses a SLIP
+connection to talk to the outside world, and supports a subset of the IRC
+commands available in full-featured clients. 48K of memory is required
+(and extended memory is not used, so it can coexist with RAMdisk drivers
+and such).
+
+Capabilities:
+
+- Can connect to an IRC server, and:
+- Join a channel
+- Send and receive channel and private messages
+- Actions (/me does whatever) are supported
+- Part the channel and join a new channel
+- Most IRC slash-commands are available
+- Client responds to CTCP PING and VERSION requests
+- Client can send CTCP PING and VERSION requests
+- Client responds correctly to server PINGs (with PONG)
+
+Limitations:
+
+These are listed approximately in order of severity, and will be addressed
+in future versions in approximately the order shown here.
+
+
+- The user interface is extremely crude (almost non-existent)
+- Try not to accidentally hit the Break key. It may result in weird
+  behaviour (though it usually doesn't)
+- Editing is extremely crude: only backspace, delete line, and delete
+  word are supported
+  (future versions will probably support emacs-like key bindings)
+- Currently, the client can only join one channel at a time. Attempts
+  to join a second channel before parting the first will fail. (future
+  versions may allow joining multiple channels, but probably no windowing, so
+  the channels' text will appear mixed together on the screen)
+- Many client features like logging, scrollback, nick highlighting, DCC,
+  multiple windows, nick completion, etc are missing. Some of these will
+  be added in future versions, but some would just take too much memory
+  to fit in 48K. (future versions are planned to have at least tab-completion
+  of nicks, and possibly a small scrollback buffer. A limited number of
+  multiple channel/msg windows is not out of the question)
+- There is no nick list displayed. At any time you can use /names #channel
+  or /who #channel to see who else is in the channel (or press ctrl-N
+  or ctrl-W), but the client doesn't attempt to track other users'
+  joins/parts/quits. (future versions may track the nick list and display
+  it as a separate screen, e.g. you press Option to see it)
+- The characters {, }, `, and ~ are not printable on the Atari. Instead they
+  are rendered as inverse-video [, ], ', and ^, respectively (future versions
+  will probably use a custom font to display these characters)
+- mIRC-style color and bold codes are not interpreted at all. They will
+  be displayed as ATASCII graphics characters (future versions will strip
+  color codes and may display bold as inverse video)
+- Most CTCP commands are unsupported (and DCC will likely never be supported)
+- Private messages from other users appear mixed in with channel text
+- Text is displayed in GRAPHICS 0, meaning it's 40 columns by 24 lines,
+  with no support for multi-colored text or anything fancy like italics
+  or underlines. It might be possible to do an Ice-T style 80 column
+  display, but it's a pig (8K for the graphics mode, plus at least 1K
+  for the font, plus rendering/scrolling is slow and might result in
+  serial buffer overruns if I'm not careful). It might instead be possible
+  to do a 40-column display with 4 or 8 character colors, using P/M overlays,
+  which would result in some visible flicker, but the overall effect isn't
+  too painful. This would require a lot less RAM and CPU cycles than the
+  80-column mode.
+
+As you can see, FujiChat is more defined by what it can't do than what it
+can, at the moment :)
+
+Configuration:
+
+The default config is stored in the file FUJICHAT.CFG in a binary format
+(not human readable). If the config file is missing at startup, FujiChat
+will start up in its config menu. If the config file was loaded, you
+will be asked "Use defaults [Y/n]?"; answering N will take you to the
+config menu.
+
+The first step in the config menu is to choose an IRC server. FujiChat
+comes with a short list of server IP addresses, which you may select
+from by entering the number of the server. You may also enter any IP
+address at the prompt, to use a server not in the built-in list. (As
+soon as I've debugged the DNS code, you'll be able to use hostnames, but
+for this release we're stuck with IP addresses only)
+
+The next step is to choose your IRC nickname. The different IRC networks
+have different limits on the maximum length of a nick, but all networks
+support at least 9 characters. FujiChat limits your nick to 20 characters.
+
+IRC forbids certain characters in a nickname: they may not start with
+a hyphen, and must consist of letters, numbers, or the characters:
+- [ ] { } ` _ \ ^
+Note that FujiChat does NO checking for invalid characters in your nick!
+
+The next two options are the background and foreground colors. These are
+standard Atari color register values (chroma/luma) to be used for the
+GRAPHICS 0 text background and foreground registers. Try not to set
+them to the same thing; you won't be able to see any text if you do!
+
+When you're done, you'll be asked whether or not you want to save the
+config. If you answer N, the options you just entered will be used for
+the current session only.
+
+Connecting to IRC:
+
+To set up a SLIP connection between your Atari and another host on your
+network, see the file HOWTO.
+
+The following instructions assume you have a properly configured SLIP
+connection, including NAT/Masquerade if required.
+
+The default IRC server is in the US, and is known not to work well for
+users in Europe. FujiChat has a short list of NewNet IRC servers built
+in (accessible from the "IRC Server" config menu), or you can enter any
+other IP address. To find the IP address of a server, you can use a tool
+such as "nslookup" or "dig", or simply ping the host from your Linux box.
+
+To connect to the IRC server, choose "Connect" from the main config menu.
+At this point, FujiChat will open a TCP connection to the server. Within
+a few seconds, you should start seeing messages from the IRC server.
+
+Once the connection is made, FujiChat will attempt to register
+your nickname and host. If your primary nickname is already in use,
+registration will fail, and you will see a server message informing you
+of this. If this happens, choose a different nickname and type "/nick
+<nickname>" (and press Return).
+
+After your nickname is registered, the server will send its "message of
+the day" (the MOTD). On NewNet, the MOTD tends to be very long, and there's
+no way to skip or abort it, so be patient.
+
+Once the MOTD has finished, the connection is ready to use. At this point,
+you can use the /join command to join a channel and start chatting!
+
+[Note: There's no way to tell the server not to send the MOTD. I could
+add an option to FujiChat to make it not *display* the MOTD, but your
+serial port's bandwidth would still be starved, and you wouldn't be able
+to get much chatting done]
+
+How to use IRC:
+
+[This section is written as an intro for someone who's completely new
+to IRC. Apologies if it seems condescending...]
+
+Before you can chat with other users, you must find some users to chat to.
+The normal place to do this is in an IRC "channel". Think of the IRC network
+as a giant building (a castle, or maybe a convention center). Each channel
+is like a room within the larger building.
+
+Channels have names that usually start with a # character. The rest of
+the name usually describes the usual topic of conversation on the
+channel. For instance, the channel #atari is about (you can guess this
+but...) Atari computers and video games.
+
+The act of entering a channel (room) is known as "joining" the channel.
+To do this, you connect to the IRC server, then type "/join" followed
+by the channel name. Example:
+
+/join #atari
+
+[FujiChat only allows joining one channel at a time, in the current
+version. Future versions may support multiple channels]
+
+Unlike a real room, the IRC channel will be created if it doesn't already
+exist. You'll know this happened if the channel's names list only shows
+your nickname.
+
+It's possible to get a complete list of channels from the IRC server, but
+this is really time-consuming (there are thousands on a typical network),
+and FujiChat doesn't provide a way to scroll through them. You can search
+for channels by name by using wildcards with the /list command. Example:
+you want to talk about cars. Try the following command:
+
+/list *cars*
+
+(Also, /list *auto*, since a car channel might be called something with
+"automobile" or "automotive" in its name).
+
+Also, for many common topics, you can just try using the topic name as
+the channel name (/join #music, /join #beer, /join #unix). Chances are
+it exists, and no harm is done if it doesn't.
+
+Once you've joined a channel, you'll be presented with a list of all
+the users in the channel, and anything you type (other than commands
+beginning with a slash (/)) will be sent to everyone in the channel.
+
+Text from other users will appear like this:
+
+<Bob> Hi there!
+
+Text you type will appear in inverse video. It will only be sent to the
+server when you press Return. You can use the backspace key to correct
+typos, or press shift-backspace to delete the entire message without
+sending it. (Future FujiChat versions will support the other Atari
+editing keys)
+
+IRC also supports private messages, which are sent to only one user.
+To send someone a private message, use the /msg (or /m) command:
+
+/msg Bob Hello
+
+When you receive a private message, it looks like this:
+
+MSG: <Bob> Howdy
+
+To reply, you would type "/msg Bob whatever you want to say".
+
+When you receive a private message, you can press the Tab key at the
+start of a new message to insert "/msg <nick> ", where <nick> is the user
+who last sent you a private message. This is handy for carrying on long
+private conversations, though you should be careful: Tab always sends
+to the last person who messaged you. If you unexpectedly get a message
+from a third party during a private conversation, you might accidentally
+send to the wrong person! Future versions of FujiChat will track more
+than one conversation, using Tab to cycle through all recent message
+recipients.
+
+IRC also supports the concept of channel operators (known as "ops"). These
+are people who "own" the channel, and have the power to kick other users
+out, ban them from the channel, set the channel topic, and a few other
+things. Channel operators' nicknames will be display in the nick list
+with an @ in front of them. Most channel operators are friendly folk
+who will help you out and answer "newbie" IRC questions, unless you're
+rude or repeatedly break the channel rules.
+
+Higher up on the food chain are IRC server operators (known as "opers").
+These godlike entities shouldn't be bothered with everyday mortal
+concerns, but sometimes you have a real problem and they're the only ones
+who can help. Most IRC networks have a channel where the opers hang out
+(usually listed in the MOTD text).
+
+IRC commands:
+
+[This is far from a complete list. Actually, different IRC servers/networks
+may have their own custom commands, so it would be very difficult to
+give a 100% complete list]
+
+IRC commands begin with a slash (/) character, and may take zero or more
+parameters. In the list the following conventions are used:
+
+<channel> represents a channel name, including the leading # character.
+IRC channel names generally always start with a #, but some servers may
+support special types of channels that begin with a different character.
+
+<nick> represents a user's nickname.
+
+<message> represents chat message text (whatever you want to say). This
+is free-form and generally should only include printable characters. IRC
+limits the length of a message to 510 characters. FujiChat further limits
+outgoing messages to 256 bytes, and will ring the Atari's "bell" if you
+try to type a message longer than this.
+
+If any of the above are shown in [] (square brackets), suck as [<nick>],
+this means the parameter is optional.
+
+/join <channel>
+
+Join a channel. You may only chat in one channel at a time in the current
+version of FujiChat. If you attempt to join a channel that does not already
+exist, most IRC servers will create the channel for you. The /join
+command may be abbreviated "/j".
+
+/part
+
+Leave the current channel. You must do this before joining a different
+channel. If you want to leave IRC (disconnect from the server), you
+don't have the /part the channel (simply use the /quit command)
+
+/nick <nick>
+
+Change your nickname. The server will respond with an error message if
+you try to use an invalid nick, or one that's already in use. If the
+command succeeds, there will be no response.
+
+/me <message>
+
+Send an "action". Other users will see your nick prefixed to the message,
+so that it looks like a sentence.
+
+Example: If your nick is Bob, and you type "/me is using FujiChat",
+it will appear to other users as something like:
+
+* Bob is using FujiChat
+
+/msg <nick> <message>
+
+Send a private message to another user. The /msg command may be abbreviated
+as "/m" or spelled the long way as "/privmsg".
+
+/quit <message>
+
+Quit IRC. The server will disconnect you, and FujiChat will give you
+the option to reconnect or return to the main menu. The <message>
+is optional.  All users in the current channel will see the <message>,
+which could be something like "Nice talking to everyone", or give the
+reason why you're leaving IRC ("Wife needs to play M.U.L.E."). If you
+don't supply <message>, the server will just use your nick in place of it.
+
+/ping <nick>
+
+Send a CTCP PING request to a user. When the user's client receives the
+request, it will respond with a "pong". This is useful for determining
+whether the user is still connected to the IRC network. Also, if the
+response takes a long time to show up, you'll know there's a lot of
+network lag between you and the other user. (Future versions of FujiChat
+may calculate & display the lag time for you)
+
+/version <nick>
+
+Send a CTCP VERSION request to a user. The user's client will usually
+respond with the name of the client software and its version, although
+most clients can be set up to say anything the user wants, or nothing
+at all. FujiChat responds to other users' version requests with
+"FujiChat 0.1 (Atari 8-bit)".
+
+/ignore <nick>
+
+Ignore (don't print) any and all messages from <nick>. If no <nick>
+is given, /ignore shows the list of nicks that are being ignored.
+Up to 10 nicks can be ignored in the current version of FujiChat.
+When you ignore someone, they don't have any way to know that you're
+ignoring them (they don't get a message telling them).
+
+/unignore <nick>
+
+Stop ignoring a user. To clear the entire list (stop ignoring all ignored
+users at once), use "/unignore -a".
+
+/quote <message>
+
+Send a string directly to the server, verbatim, instead of to the current
+channel you've joined. If you don't know what this command is good for,
+don't worry about it: it's mostly used by the author as a debugging tool.
+
+Keyboard Macros:
+
+These are only active at the beginning of a line (in other words, you
+can't send them when you're in the middle of typing a message). The
+macros are:
+
+Control-N: performs a "/names #channel" for the currently joined channel.
+Control-W: performs a "/who #channel" for the currently joined channel.
+Tab: inserts the text "/msg nick" at the beginning of the line, where
+  the nick is that of the last user who sent you a private message.
+
+There may be a user-definable keyboard macro facility in a future version
+of FujiChat (or maybe not, if it'd make the client too bloated).
+
+Other IRC commands:
+
+Most other commands are supported in a dumb kind of way. Anything you
+type that starts with a slash, and isn't one of the recognized commands
+listed above, will be sent to the server with the slash removed and
+the command name converted to uppercase. This works pretty well for
+commands like /away, /kick, /mode, /topic, etc:
+
+Kick a user from a channel (if you're a channel operator):
+/kick <channel> <nick> [<message>]
+
+Ban a user from a channel (again, you must be a chanop):
+/mode <channel> +b <nick>
+
+Get a list of who's in a channel:
+/names <channel>
+
+Get a fancier list:
+/who <channel>
+
+NewNet-specific command: log in to NickServ
+/ns id <password>
+
+See RFC1459 for a complete protocol specification. Any of the commands
+shown there can be sent by prefixing them with a / character.
+
+RFC1459 on the web:
+http://www.rfc-editor.org/cgi-bin/rfcdoctype.pl?loc=RFC&letsgo=1459&type=http&file_format=txt
+
+Credits:
+
+FujiChat is written by B. Watson (aka Urchlay on NewNet).
+
+FujiChat includes software (the uIP TCP/IP) stack by Adam Dunkels. Without
+Mr. Dunkels' excellent and well-documented software, FujiChat probably
+would never have been more than a pipe dream.
+
+FujiChat also includes the Bob-Verter driver by Bob Puff.
+
+Special thanks to SteveS and Beetle for being my guinea pigs (erm, I mean,
+beta testers)
+
+You're invited to come hang out in #atari on NewNet any time. You can
+usually find me there, although I may be asleep at the keyboard. If you
+have trouble getting FujiChat to work, or have a bug report or feature
+request, or if you just use FujiChat, I'd like to hear from you.
+

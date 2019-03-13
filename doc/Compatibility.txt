@@ -1,0 +1,33 @@
+FujiChat has so far been tested with:
+
+Serial Interfaces:
+
+SIO2PC + Bob-Verter driver [*]
+ATR8000 serial port [*]
+Atari 850 (Atari driver) [!]
+Black Box [!]
+P:R: Connection
+
+[*] = hardware handshaking not supported or not tested; requires patched
+slattach binary for higher baud rates; probably limited to 4800 baud.
+
+[!] = hardware handshaking tested and working (with unpatched slattach)
+
+DOSes:
+
+Atari DOS 2.0S
+SpartaDOS X 4.x (use 'X' command)
+MyDOS 4.5
+
+Display drivers:
+
+XEP-80 (ABBUC driver)
+CON80.SYS and CON64.SYS (Sparta X)
+Omniview 80
+
+FujiChat is known not to work with ClausB's old E80 driver, and probably
+won't work with ACE-80 either (untested).
+
+Misc:
+
+Atari CX-85 (numeric keypad)

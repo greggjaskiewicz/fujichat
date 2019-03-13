@@ -1,0 +1,731 @@
+
+; ----------------------------------------------------------------------------
+; 64x32 software text driver
+; Uses 4x5 font in 5x6 character cells
+; Based on disassembled COL80 driver
+
+; This driver is missing quite a few things a full E: driver should have:
+
+; - No support for cursor controls, insert/delete, or even clear screen
+;   (instead the control-codes are printed as normal characters, if they're
+;   above 31 decimal)
+
+; - No support for low ASCII at all: any attempt to input or print a character
+;   in the range 0-31 decimal is just ignored (this includes the arrow keys)
+
+; - Does not attempt to survive a warmstart
+
+; - Will fail disastrously if an application sets COLCRS/ROWCRS to any
+;   out-of-range values
+
+; - Only displays the cursor during get-byte operations
+
+; - Backspace key is supported during get-byte, but printing a backspace
+;   with put-byte prints a tilde instead
+
+; On the other hand, this driver is tiny, and plays nice with cc65's stdio
+; support (though NOT conio!)
+
+ processor 6502 ; DASM-specific
+
+; ----------------------------------------------------------------------------
+ include equates.inc
+s_dev_open_lo   = $E410 ; (not named in OS sources)
+s_dev_open_hi   = $E411 ; ""
+k_dev_get_lo    = $E424 ; ""
+k_dev_get_hi    = $E425 ; ""
+
+; ----------------------------------------------------------------------------
+; Constants
+
+LAST_ROW = $1F
+EOL      = $9B
+INVERTED_MASK = $F8
+
+; ----------------------------------------------------------------------------
+; Defaults
+
+DEFAULT_TEXT_COLOR = $00
+DEFAULT_BG_COLOR   = $08
+;DEFAULT_LMARGN     = $00 ; not used
+DEFAULT_RMARGN     = $3F
+
+; ----------------------------------------------------------------------------
+; ZP storage
+; Reuse some of the E:/S: devices' storage
+; These all get recalculated on col64_putbyte entry,
+; so it's OK to mix with GR.8 PLOT/DRAWTO stuff
+
+ seg.u "data"
+ org $5A ; aka OLDROW
+mask_lo         ds 1
+mask_hi         ds 1
+screen_ptr_lo   ds 1
+screen_ptr_hi   ds 1
+font_index      ds 1
+shift_amount    ds 1
+line_count      ds 1
+glyph_data_lo   ds 1
+glyph_data_hi   ds 1
+
+; ----------------------------------------------------------------------------
+; Non-ZP storage (cassette buffer for now)
+
+ org CASBUF
+lo_nybble_flag    ds 1
+inverse_mask      ds 1
+line_buffer_index ds 1
+line_buffer       ds $80
+
+ seg "code"
+; ----------------------------------------------------------------------------
+; XEX segment header
+START_ADDRESS_1 = $9A00
+ org START_ADDRESS_1-6
+
+ word $FFFF
+ word START_ADDRESS_1
+ word END_ADDR_1
+
+; ----------------------------------------------------------------------------
+; Font data should be aligned on a page boundary
+; (for speed; still works unaligned). Each 5 bytes stores 2 glyphs
+; side-by-side. When rendering into 5x6 cells, the bottom line and
+; the left column are set to all 0, so the glyphs can take up the
+; entire 4x5 space.
+; Only character codes 32 through 127 are supported; this is 96
+; characters. At 2 glyphs per 5 bytes, that's 96/2*5=240 bytes,
+; which means the whole font fits into one page and can be
+; accessed with X or Y indexed mode rather than (indirect),Y.
+
+font_data:
+ include font4x5.inc
+
+; ----------------------------------------------------------------------------
+; Mask tables, used by setup_mask. Indexed by (COLCRS % 8), since they
+; would repeat every 8 bytes anyway.
+
+mask_lo_tab:
+ byte $07, $F8, $C1, $FE, $F0, $83, $FC, $E0
+
+; In mask_hi_tab, $00 is never a valid mask, while $FF means "don't touch any
+; bits in 2nd byte". As a minor optimization, $00 appears in the table in
+; place of $FF. This allows us to just test the Z flag after loading the mask
+; hi byte, instead of needing to compare against $FF.
+
+mask_hi_tab:
+ byte $00, $3F, $00, $0F, $7F, $00, $1F, $00
+
+; ----------------------------------------------------------------------------
+; Indexed by COLCRS%8, how many bits to shift the font data right
+; The mask_*_tab stuff above could be calculated at runtime from this,
+; the tables are only there for speed.
+shift_amount_tab:
+ byte $00, $05, $02, $07, $04, $01, $06, $03
+
+; ----------------------------------------------------------------------------
+; Line address tables, used by setup_screen_ptr.
+
+line_addr_tab_hi:
+ byte $00, $00, $01, $02, $03, $04, $05, $06
+ byte $07, $08, $09, $0a, $0b, $0c, $0d, $0e
+ byte $0f, $0f, $10, $11, $12, $13, $14, $15
+ byte $16, $17, $18, $19, $1a, $1b, $1c, $1d
+
+line_addr_tab_lo:
+ byte $00, $f0, $e0, $d0, $c0, $b0, $a0, $90
+ byte $80, $70, $60, $50, $40, $30, $20, $10
+ byte $00, $f0, $e0, $d0, $c0, $b0, $a0, $90
+ byte $80, $70, $60, $50, $40, $30, $20, $10
+
+; ----------------------------------------------------------------------------
+; Byte offset within scanline, indexed by COLCRS value
+; Used by setup_screen_ptr
+
+column_byte_tab:
+ byte $00, $00, $01, $01, $02, $03, $03, $04
+ byte $05, $05, $06, $06, $07, $08, $08, $09
+ byte $0A, $0A, $0B, $0B, $0C, $0D, $0D, $0E
+ byte $0F, $0F, $10, $10, $11, $12, $12, $13
+ byte $14, $14, $15, $15, $16, $17, $17, $18
+ byte $19, $19, $1A, $1A, $1B, $1C, $1C, $1D
+ byte $1E, $1E, $1F, $1F, $20, $21, $21, $22
+ byte $23, $23, $24, $24, $25, $26, $26, $27
+
+; ----------------------------------------------------------------------------
+; Handler table (HATABS will point to this).
+; See the HATABS and EDITRV entries in Mapping the Atari for details.
+
+col64_vector_tab:
+ word col64_open-1     ; OPEN vector
+ word col64_close-1    ; CLOSE vector
+ word col64_getbyte-1  ; GET BYTE vector
+ word col64_putbyte-1  ; PUT BYTE vector
+ word col64_close-1    ; GET STATUS vector
+ word col64_close-1    ; SPECIAL vector
+ jmp col64_init      ; Jump to initialization code (JMP LSB/MSB)
+
+; ----------------------------------------------------------------------------
+; Assembly version of GRAPHICS 8+16 command.
+
+init_graphics_8:
+ lda     #$08 ; graphics mode 8
+ sta     ICAX2Z
+ lda     #$0C ; R/W access
+ sta     ICAX1Z
+ jsr     open_s_dev
+
+ ; Set default colors
+ lda     #DEFAULT_BG_COLOR
+ sta     COLOR2
+ sta     COLOR4
+ lda     #DEFAULT_TEXT_COLOR
+ sta     COLOR1
+
+ ; Protect ourselves from the OS
+ lda     #<START_ADDRESS_1
+ sta     MEMTOP
+ lda     #>START_ADDRESS_1
+ sta     MEMTOP+1
+ rts
+
+; ----------------------------------------------------------------------------
+; Call the OPEN vector for the S: device, using the ROM vector table
+; at $E410. The table stores address-minus-one of each routine, which is
+; meant to actually be called via the RTS instruction (standard 6502
+; technique, but confusing the first time you encounter it)
+
+open_s_dev:
+ lda     s_dev_open_hi
+ pha
+ lda     s_dev_open_lo
+ pha
+ rts
+
+; ----------------------------------------------------------------------------
+; Callback for the internal get-one-byte, used by the OS to implement the
+; CIO GET RECORD and GET BYTES commands. This routine takes no arguments,
+; and returns the read byte in the accumulator.
+
+; Internally, COL64 maintains a line buffer. Each time col64_getbyte is
+; called, it returns the next character in the buffer. If the buffer's
+; empty (or if the last call returned the last character), a new line
+; of input is read from the user (and the first character is returned).
+; This is exactly how the OS E: device works.
+
+col64_getbyte:
+        lda     BUFCNT
+        beq     get_line
+
+get_next_byte:
+        ldx     line_buffer_index
+        lda     line_buffer,x
+        dec     BUFCNT
+        inc     line_buffer_index
+        jmp     return_success
+
+; ----------------------------------------------------------------------------
+; Get a line of input from the user, terminated by the Return key.
+
+get_line:
+        lda     #$00
+        sta     BUFCNT
+        sta     line_buffer_index
+
+show_cursor:
+        lda     #$00
+        sta     TMPCHR
+        lda     #INVERTED_MASK
+        sta     inverse_mask
+        jsr     render_glyph
+        jsr     get_keystroke
+        cpy     #$01
+        beq     keystroke_ok
+        dey ; yes, we really care about 1-byte optimizations
+        sty     line_buffer_index
+        sty     BUFCNT
+
+keystroke_ok:
+        cmp #$20
+		  bcc show_cursor ; ignore low ASCII
+        cmp     #EOL
+        bne     check_backs_key
+        jmp     return_key_hit
+
+check_backs_key:
+        cmp     #$7E
+        bne     check_clear_key
+        jmp     backs_key_hit
+
+check_clear_key:
+        cmp     #$7D
+        bne     normal_key_hit
+        jmp     clear_key_hit
+
+normal_key_hit:
+        ldx     BUFCNT
+        bpl     buffer_character
+;        jmp     beep ; if we implemented it...
+        jmp show_cursor
+
+buffer_character:
+        sta     line_buffer,x
+        jsr     col64_putbyte
+        inc     BUFCNT
+        jmp     show_cursor
+
+return_key_hit:
+        jsr     print_space
+        lda     #EOL
+        ldx     BUFCNT
+        sta     line_buffer,x
+        inc     BUFCNT
+        jsr     col64_putbyte
+        jmp     get_next_byte
+
+clear_key_hit:
+;        jsr     clear_screen ; if we implemented it...
+        lda     #$00
+        sta     line_buffer_index
+        sta     BUFCNT
+        jmp     get_line
+
+backs_key_hit:
+        jsr     print_space
+        lda     BUFCNT
+        beq     backs_key_done
+        dec     COLCRS
+        lda     COLCRS
+        clc
+        adc     #$01
+        cmp     LMARGN
+        bne     backs_same_line
+        lda     RMARGN
+        sta     COLCRS
+        dec     ROWCRS
+
+backs_same_line:
+        dec     BUFCNT
+
+backs_key_done:
+        jmp     show_cursor
+
+; ----------------------------------------------------------------------------
+; Print a space character at the current cursor position. Does not
+; update the cursor position.
+print_space:
+        lda     #$00
+        sta     inverse_mask
+
+        sta     TMPCHR
+        jsr     render_glyph
+        rts
+
+; ----------------------------------------------------------------------------
+; Get a keystroke (blocking). Just calls the OS K: get-one-byte routine
+; (call by pushing address-minus-one then doing an RTS)
+
+get_keystroke:
+        lda     k_dev_get_hi
+        pha
+        lda     k_dev_get_lo
+        pha
+        rts
+
+
+; ----------------------------------------------------------------------------
+; Unimplemented CIO callbacks here. Also various other routines jump here
+; to return success to the caller.
+
+col64_close:
+return_success:
+ ldy #$01
+ rts
+
+; ----------------------------------------------------------------------------
+; CIO OPEN command callback
+
+col64_open:
+ jsr     init_graphics_8
+ lda     #$00
+ sta     ROWCRS
+ sta     COLCRS
+ sta     BUFCNT
+ sta     LMARGN
+ lda     #DEFAULT_RMARGN
+ sta     RMARGN
+ rts
+
+; ----------------------------------------------------------------------------
+; CIO PUT BYTE command callback
+; The byte to put is passed to us in the accumulator.
+
+col64_putbyte:
+ ; EOL (decimal 155)?
+ cmp     #EOL
+;;;        bne     check_clear
+ bne     regular_char
+ lda     RMARGN
+ sta     COLCRS
+ jmp     skip_write
+
+;;;check_clear:
+;;; ; save memory by not including clear_screen
+;;; ; (also, this lets us print the } character)
+;;;        ; Clear (decimal 125)?
+;;;        cmp     #$7D
+;;;        bne     regular_char
+;;;        jmp     clear_screen
+;;; .endif
+;;;
+
+; See if this is an inverse video char (code >= 128)
+regular_char:
+ tax
+ bpl not_inverse
+ lda #INVERTED_MASK
+ sta inverse_mask
+ bne skip_ninv
+
+not_inverse:
+ lda #$00
+ sta inverse_mask
+
+skip_ninv:
+ txa
+ and #$7F
+ sec
+ sbc #$20
+ bcs not_low_ascii
+ jmp return_success
+
+not_low_ascii:
+ sta TMPCHR
+
+ lda DINDEX ; OS stores current graphics mode here
+ cmp #$08
+ beq graphics_ok
+ ; If we're not in GRAPHICS 8 mode, reinitialize ourselves
+ jsr col64_open
+
+graphics_ok:
+ jsr render_glyph
+
+skip_write:
+ ; Move the cursor 1 space to the right. This will
+ ; advance us to the next line if we're at the margin,
+ ; and scroll the screen if needed
+ jsr     advance_cursor
+
+; Could implement SSFLAG logic here
+;check_ssflag:
+ ; The OS keyboard interrupt handler will toggle SSFLAG (start/stop fla
+ ; any time the user presses ctrl-1
+ ;lda     SSFLAG
+ ;bne     check_ssflag
+ jmp     return_success
+
+; ----------------------------------------------------------------------------
+; Call the routines that actually print the character.
+; render_glyph prints the character in TMPCHR at the current
+; COLCRS and ROWCRS, and does NOT advance the cursor.
+; TMPCHR should already have bit 7 stripped; render_glyph will
+; use inverse_mask, so the caller should have set that up as well.
+render_glyph:
+ jsr     setup_mask
+ jsr     setup_screen_ptr
+ jsr     setup_font_index
+ jmp     write_font_data
+
+; ----------------------------------------------------------------------------
+; mask is used to avoid overwriting pixels outside the character cell
+; we're currently writing. Since 5 pixel wide cells don't align on byte
+; boundaries in screen RAM, we have to read/modify/write 2 bytes, and
+; the mask also has to be 2 bytes wide.
+; Also we set up shift_amount here.
+
+setup_mask:
+ lda COLCRS
+ and #$07
+ tax
+ lda mask_lo_tab,x
+ sta mask_lo
+ lda mask_hi_tab,x
+ sta mask_hi
+ lda shift_amount_tab,x
+ sta shift_amount
+ rts
+
+
+; ----------------------------------------------------------------------------
+; Make (screen_ptr_lo) point to the first byte of screen RAM on the top scanline
+; of the current char cell. Assumes COLCRS/ROWCRS are never out of range!
+setup_screen_ptr:
+ ; first the row... table lookup quicker than mult by 240
+ ldx ROWCRS
+ clc
+ lda SAVMSC
+ adc line_addr_tab_lo,x
+ sta screen_ptr_lo
+ lda SAVMSC+1
+ adc line_addr_tab_hi,x
+ sta screen_ptr_hi
+
+ ; now do the column
+ ldx COLCRS
+ lda screen_ptr_lo
+ clc
+ adc column_byte_tab,x
+ sta screen_ptr_lo
+ lda #0
+ adc screen_ptr_hi
+ sta screen_ptr_hi
+
+ rts
+
+; ----------------------------------------------------------------------------
+; Set up font_index to point to the font_data bitmap for the character in
+; TMPCHR. Also sets lo_nybble_flag to let the caller know whether the
+; bitmap is in the upper or lower 4 bits of the bytes pointed to.
+
+; Calculation is:
+; lo_nybble_flag = (TMPCHR & 1) ? $FF : $00;
+; font_index = (TMPCHR >> 1) * 5;
+
+setup_font_index:
+        lda     #$00
+        sta     lo_nybble_flag
+        lda     TMPCHR
+        lsr     ; a = (TMPCHR >> 1)
+        tay     ; y = a
+        bcc     font_hi_nybble
+        dec     lo_nybble_flag ; = $FF
+
+font_hi_nybble:
+        clc
+        asl ; a *= 2
+        asl ; a *= 2
+        sta font_index
+        tya
+        adc font_index
+        sta font_index
+
+        rts
+
+
+; ----------------------------------------------------------------------------
+; When write_font_data is called:
+; - font_index is the 1-byte index into font_data where the current glyph is
+; - lo_nybble_flag is 0 for high nybble of glyph data, $FF for low
+; - mask_lo/hi is our 16-bit pixel mask (1's are "leave original data")
+; - shift_amount is # of times to shift glyph data right
+; - screen_ptr_lo/hi points to the 1st byte on the top line
+
+; Loop 5 times, each time thru the loop:
+; - extract 4-bit glyph data, store in glyph_data_lo
+; - shift right shift_amount times
+; ...write data...
+; - add 40 to 16-bit screen_ptr_lo/hi (to get to next line)
+
+write_font_data:
+ lda #$05
+ sta line_count
+
+wfont_line_loop:
+ lda #$00
+ tay
+ sta glyph_data_hi
+
+ ldx font_index
+ lda font_data,x
+
+ bit lo_nybble_flag
+ beq use_hi_nybble
+
+ asl
+ asl
+ asl
+ asl
+
+use_hi_nybble: ; 4-bit glyph data now in hi nybble
+ and #$F0
+ eor inverse_mask
+ sta glyph_data_lo
+
+ ldx shift_amount
+ beq wfont_no_shift
+
+wfont_shift_loop:
+ lsr glyph_data_lo
+ ror glyph_data_hi
+ dex
+ bne wfont_shift_loop
+
+wfont_no_shift:
+ lda mask_lo
+ and (screen_ptr_lo),y
+ ora glyph_data_lo
+ sta (screen_ptr_lo),y
+
+ lda mask_hi
+ beq wfont_skip_hi
+ iny
+ and (screen_ptr_lo),y
+ ora glyph_data_hi
+ sta (screen_ptr_lo),y
+
+wfont_skip_hi:
+ dec line_count
+ bmi wfont_done
+ bne wfont_not_bottom
+
+ stx font_index ; X always 0: for last line, cheat and use the space glyph
+ stx lo_nybble_flag
+
+wfont_not_bottom:
+ lda #$28 ; 40 bytes to next line
+ clc
+ adc screen_ptr_lo
+ sta screen_ptr_lo
+ bcc wfont_noinc
+ inc screen_ptr_hi
+
+wfont_noinc:
+ inc font_index
+ bne wfont_line_loop ; branch always
+
+wfont_done:
+ rts
+
+; ----------------------------------------------------------------------------
+; Not the fastest scroller in the west... TODO: make faster :)
+
+; glyph_data_lo points to line N
+; screen_ptr_lo points to line N+1
+scroll_screen:
+ lda #0
+ sta COLCRS
+ sta ROWCRS
+ jsr setup_screen_ptr
+
+scroll_line_loop:
+ lda screen_ptr_lo
+ sta glyph_data_lo
+ lda screen_ptr_hi
+ sta glyph_data_hi
+ ldx ROWCRS
+ cpx #LAST_ROW
+ beq scroll_blank
+ inx
+ stx ROWCRS
+ jsr setup_screen_ptr
+ ldy #0
+
+scroll_byte_loop:
+ lda (screen_ptr_lo),y
+ sta (glyph_data_lo),y
+ iny
+ cpy #$F0
+ bne scroll_byte_loop
+ beq scroll_line_loop
+
+scroll_blank:
+ jsr setup_screen_ptr
+ ldy #0
+ tya
+sblank_loop:
+ sta (screen_ptr_lo),y
+ iny
+ cpy #$F0
+ bne sblank_loop
+
+ rts
+
+; ----------------------------------------------------------------------------
+; Move the cursor one space to the right (to the next line if at the margin,
+; and scroll screen if on the last row)
+
+advance_cursor:
+        inc     COLCRS
+        lda     RMARGN
+        cmp     COLCRS
+        bcs     same_line
+        lda     LMARGN
+        sta     COLCRS
+        lda     ROWCRS
+        cmp     #LAST_ROW
+        bcc     no_scroll
+        jsr     scroll_screen
+        ; Move to last row after scrolling
+        lda     #LAST_ROW-1
+        sta     ROWCRS
+
+no_scroll:
+        inc     ROWCRS
+
+same_line:
+        rts
+
+; ----------------------------------------------------------------------------
+; Initialization. If we don't want the handler to survive a warmstart, we
+; can load this bit into e.g. the cassette buffer (throw away after running)
+
+col64_init:
+        ldy     #$00
+
+next_hatab_slot:
+        lda     HATABS,y
+        beq     register_x_handler
+        iny
+        iny
+        iny
+        cpy     #$20
+        bcc     next_hatab_slot
+        jmp     return_success
+
+register_x_handler:
+        lda     #$58
+        sta     HATABS,y
+        lda     #<col64_vector_tab
+        iny
+        sta     HATABS,y
+        lda     #>col64_vector_tab
+        iny
+        sta     HATABS,y
+        jmp     return_success
+
+main_entry_point:
+        jsr     col64_init
+        lda     #$0C
+        sta     ICCOM
+        ldx     #$00
+        jsr     CIOV
+        lda     #$58
+        sta     font_index
+        lda     #$03
+        sta     ICCOM
+        lda     #font_index
+        sta     ICBAL
+        lda     #$00
+        sta     ICBAH
+        ldx     #$00
+        jsr     CIOV
+        ldy     #$07
+        lda     #<col64_vector_tab
+        sta     HATABS,y
+        lda     #>col64_vector_tab
+        iny
+        sta     HATABS,y
+no_e_handler:
+        lda     #<START_ADDRESS_1
+        sta     MEMTOP
+        lda     #>START_ADDRESS_1
+        sta     MEMTOP+1
+        jmp     return_success
+
+END_ADDR_1 = *-1
+
+; XEX segment (run address)
+ word INITAD
+ word INITAD+1
+ word main_entry_point

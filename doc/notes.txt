@@ -1,0 +1,281 @@
+Definitely need to rewrite huge swathes of code in asm.
+Candidates are:
+
+fujichat.c: main(), handle_keystroke(), and the protocol parsing
+routines
+
+rs232dev.c: the whole thing could be rewritten in asm for speed,
+but the size isn't so bad.
+
+uIP itself: have to investigate. Some of the code is pretty
+hairy. Before rewriting in asm, should make it so we can
+compile without TCP listen support, since we don't use it.
+
+
+Need to re-do the R: handler stuff. At least one driver (the
+plain Atari 850 one) actually crashes when loaded from either
+the DOS menu or aexec. Apparently it *only* works if it's
+loaded as autorun.sys. So, something like this:
+
+- Initial autorun.sys on disk loads a program called makeauto.
+[done]
+
+- makeauto asks for the serial driver, then concatenates the
+driver + menu.com into a new autorun.sys (renaming the old
+one to autorun.old or something), then asks user to reboot.
+[done]
+
+- Any time fujiconf loads and can't find an R: handler, it tells the
+user and runs makeauto for him (or anyway asks, with default Yes). The
+"set R: driver" stuff in fujiconf needs to move to makeauto (and be
+changed so it appends files instead copy).
+
+- FujiChat itself still won't contain any R: detection or
+anything, beyond the RS232 Not Initialized error message
+[done]
+
+- While I'm at it, fix the filename paths so they *all* begin with
+the D: prefix.
+[done]
+
+- Possibly menu.com has a new menu item, "RS232 Setup", and warns
+the user "You must run RS232 Setup before using FujiChat"
+
+20081124 bkw: Add /peek, /poke, /fgcolor, /bgcolor commands.
+
+Also, now that we're parsing numerics from the server, it'd be
+nice to do the alternate-nick thing, for when the nick is in use.
+
+20081124 bkw: Keep a time-of-day clock (don't use RTCLOK to store
+it though). At connect, send /TIME to the server, parse the results.
+The config file will need a timezone setting.
+
+20081121 bkw: Feature idea: auto-away when attract mode kicks in,
+with default away message (but don't announce to channel). Un-away
+as soon as a key is hit. Possibly let the user set a timeout
+instead of letting the OS default to 9 minutes.
+[done, using default OS timeout only]
+
+Ideas for logging:
+
+Will anyone give a shit about logging to disk? If so, it wouldn't
+be impossible... but we'd likely drop packets (or does uip_stop()
+gracefully handle this, maybe with a callback?)
+
+/log [on|off|flush|file filename|search <term>]
+
+Keep the disk file open? Log stuff to memory, then just before
+the buffer fills, write it out to disk.
+
+Logging to memory, looks like we have a little over 5K for this.
+When we get ready to log a message that would put us past the end
+of the buffer, memmove() the buffer down by some amount (say 1/4
+of its size).
+
+Log viewing is a mode. While enabled, handle_keystroke() will do
+the --more-- thing. Traffic indicator's still active, and we
+still log stuff to memory, but *don't* print it. If the log
+has to be shifted down, also shift down the currently-viewing
+pointer. If the view pointer points too low to move, set it
+to the bottom of the log buffer if it isn't already (user will
+get confused, but what you gonna do?). Forward/backward searches
+should work. Filtering by nick should work.
+
+When entering logviewer mode, save the current end-of-log address.
+Any time the log moves while viewing, also subtract from this
+address. More stuff can be coming in & being logged above this
+address... on exiting logviewer mode, anything aboved the saved
+address should be printed to the screen immediately.
+
+In this model of "scrollback" support, we actually don't scroll
+per se, we're *still* using stdio to print stuff. It might be
+that on entering logviewer mode, we should run through the log,
+counting characters, so we'll know where each screens' worth
+starts (for going back/up in the viewer). Either that, or we
+could print the damn thing backwards?
+
+At a price of 3 bytes per message, we can store timestamps. Not
+sure if it's worth it. Actually maybe we can just store a single
+byte in the buffer every N minutes, to give a rough guide to
+how long ago the next bunch of messages were.
+
+How bout this for a lightly compressed format: we're only storing
+7-bit printable ascii, in 8-bit bytes, so...
+
+1st byte:
+
+0-31 - No message, just timestamp. Next message starts at
+next byte in buffer. The value is the minutes-1 since the
+last timestamp. Basically, every minute of wall-clock time,
+a timestamp of 0 is added to the buffer if someone has said
+something in the past minute. If not, there will already
+be a timestamp at the end of buffer, so just increment it
+(unless it's at the max value, in which case add a zero
+timestamp after it). We can use these to e.g. print
+"(42 minutes silence)" or such. I'd like to be able to
+do "N minutes ago" type messages, but to do that I have to
+run through the buffer backwards to calculate what they
+should be (then forwards to actually read messages from it).
+
+Anything else: 1st char of nick, or 0x80 meaning "same nick as last
+message" (or 0x81 meaning "my nick"?). Some care has to be taken when
+memmoving the buffer: blocks of messages from the same user need to be
+treated as a unit (kept entirely, or disposed of entirely).  For this
+to make sense, such blocks have to be kept short (say, less than the
+move-amount).
+
+Next bytes are the rest of the nick, with bit 7 set for the last
+one. In case of a 1-char nick, 1st and only char has bit 7 set.
+
+After last nick char comes the message.
+For the first byte, if the top bit is set, the bottom 7 bits are:
+
+0 - empty message
+1-31 - stuff like join/quit/part (don't bother to store part,
+quit, or kick messages? or store normally?)
+Anything else - normal message character (the only one, if the
+top bit is set).
+
+Further message bytes are stored with the top bit of the last byte
+being set.
+
+So if someone joins, says hello, and parts (<c> means 'c' with high
+bit set:
+
+Use<r>\x01\x80Hello\x80\x02
+
+(Assuming \x01 is the join code and \x02 is the part code)
+
+This is 13 bytes. If we stored what a normal client stores in its
+log, it might look like:
+
+User has joined\n
+<User> Hello\n
+User has left\n
+
+Which is 16+13+14 = 43 bytes. Most clients would actually store the
+channel name with the joins/parts; I left them out to make the
+comparison more fair (we don't penalize them for storing info that
+we don't store, only for storing the same info less densely).
+
+
+20081120 bkw: smallest 0.4 binary, with all FEAT_* turned off except
+for FEAT_LOW_RAM_BUFFERS, the BSS ends at $920E. With COL80E relocated
+to $9A00, that gives us 1K for stack. Not great, but might work. It's
+still too big to use with E80 (by about 3K, counting the stack).
+
+COL80E loads at $7A00-$7F80, but doesn't really seem to use any RAM
+from $8000-A000 with BASIC disabled. If the code could be relocated so
+it loads at $9A00, we'd have a fighting chance of squeezing fujichat to
+fit. Currently fujichat loads $2E00-8D3B... meaning there'd be a little
+over 3K for stack & data/bss variables. Need to examine cc65's map file,
+see how high the data/bss stuff goes. Moving the input and output buffers
+to low RAM is going to help a lot. It also might be possible to move
+the stack to low RAM (it's supposed to sit right above the heap, but
+fujichat isn't using malloc(), which unless I'm mistaken means no heap
+usage... though some of the libraries it links with might be using it).
+
+Try compiling uip without UDP checksums, with fewer TCP/UDP conns,
+asm optimize anything that doesn't compile efficiently?
+
+It looks like TCP listen support could be made a compile-time option
+that could be disabled. IRC doesn't need to listen on ports except
+for DCCs, and we probably can't ever make those work anyway. It
+won't save much (guesstimate is 50-75 bytes)...
+
+Each TCP conn is supposed to take 30 bytes. For now we only need one,
+but we have 5, so wasting 120 bytes there.
+
+[so far, changing max. tcp conns, listen ports, and udp conns to 1,
+and disabling udp cksums, has saved 325 bytes. Worth it, but need to
+make sure the app still works!]
+
+[also, make some of FujiChat's features able to be removed at
+compile-time. Removing them all saves 963 bytes, and makes the BSS
+end at $96cb! If COL80E were relocated to $9A00, we'd have 800-odd
+bytes for the heap/stack, which still ain't enough... Possibly
+the stack could be shrunk by 256 bytes and relocated to $2700?]
+
+E80 is probably a lost cause. It seems to take 12K, which seems like an
+awful lot. Screen is hard-wired to $6E70, but it seems to not use any
+RAM from $A000-BFFF with BASIC disabled. moving the whole thing up 8K
+(assuming I can relocate the code) gives us a start address of $8E70,
+or 3K lower than COL80E, or 130-odd bytes(!)  above the end of cc65's
+code segment (ouch!)... however maybe I could leave it unrelocated, and
+use a linker script to move all the data/bss/heap/stack/etc (everything
+but the code, and maybe some of the code too) to the $A000-BFFF area
+(8K seems like a good bit, the stack is 2K).
+
+Fast E40 driver doesn't have to be a full E: replacement! Instead, we only
+need to hook the "put 1 byte" routine, and do the following:
+
+Check & see if byte-to-print is printable or an EOL. If it's neither,
+jump to the OS's print-one-byte routine.
+
+If the screen is about to scroll (if we're on bottom line and byte is
+0x9b, or if we're on bottom line + last column and byte is printable),
+we capture the top line (first 40 bytes) of screen RAM and store in
+scrollback buffer.  We can probably detect when the line ends in >1
+spaces, and not store those.
+
+If a screen scroll is needed, do it ourselves, *fast*. This may turn
+out to be too messy or bloated to deal with, but I think it might not
+be so bad.
+
+If the char is printable, print it, *fast*. Fast E40 doesn't have to
+support margins other than 0 and 39, which should help. Also we can
+make assumptions about where the screen RAM is if need be, and use
+multiple ZP pointers into it (using the FP zero page area).
+
+However much scrollback RAM we have, we have to subtract 1K from it for
+a viewing buffer. This allows us to keep printing to the main screen
+RAM while it's not showing, and buffering it as it scrolls, without the
+viewing buffer changing while we look at it... also when done viewing,
+we toggle back to displaying main screen RAM instantly.
+
+I'm thinking there have to be separate builds for Fast E40 and whatever
+80-col driver I get working. The 80 version won't have any support for
+scrollback at all, not least because there's no RAM for the buffer!
+
+Also if there's ever going to be a separate edit buffer "window",
+or multiple channel windows, fast E40 is where they'll live.
+
+It might also be possible to do word-wrap. Not sure whether that's better
+done in the driver or in the app. Doing it in the app means it'll work
+in 80-column mode, too.
+
+...potential new feature: should be able to do ping times by sending the
+low 2 RTCLOK bytes in numeric form, then when the response comes back,
+decode back into 2 bytes, subtract from current RTCLOK, convert to
+10ths of a second, and print.
+
+I *really* wish I could do CSLIP. Maybe later. Not delved too deeply
+into the guts of uIP... maybe the serial driver could transparently
+do the comp/decomp, and speak plain SLIP to uIP? (would this be
+too slow, cause drops? Even if it doesn't make us drop packets, would
+the CPU overhead negate any benefit to be gained from it?)
+
+Also on the drawing board, keyboard buffering during rs232 I/O. Fairly
+straightforward, I think. Don't actually cgetc() or anything, just
+save the contents of CH in a buffer if it's not $FF, and set it
+to $FF to clear the keystroke. In fact, there's a prototype of it
+in keybuftest.c (just needs to be integrated).
+
+Another idea: a status line wouldn't be so hard to do, even without a
+fancy E: driver. Could write directly into the first 40 bytes of screen
+RAM. I don't want to give up a line of display though... but instead of
+a full status line, it'd be cool to display a little up or down arrow
+in the upper-right corner during rs232 sends/receives (save & restore
+the character that really goes there). The screen codes for the up
+and down arrows are $5C and $5D ($DC and $DD for inverse).
+
+/j or /join without a channel should rejoin the current channel, if
+FujiChat thinks it's in a channel. This would give us an easy way
+to rejoin the channel if kicked.
+
+There needs to be an extra-dumb terminal program for use with manual
+login systems. It should fit in 1K or so, load on top of fujichat's
+input/output/msg buffer space, and RTS back to fujichat when it's
+done. Later on there should be a chatscript engine that loads in
+the same space and works the same way.
+

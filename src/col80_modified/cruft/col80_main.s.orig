@@ -1,0 +1,895 @@
+; COL80.COM, aka COL80E.COM, aka COL80HND.COM
+; (and probably several other names)
+
+; Original author unknown
+; License unknown
+; Disassembly and comments by Urchlay
+
+; This is a widely-distributed software 80-column driver for the Atari
+; 8-bit computers. It replaces the OS's E: driver, and uses GRAPHICS 8
+; for display, with 4x8 pixel character cells.
+
+; Disassembly was done with da65, with many iterations of "edit the
+; .info file, disassemble again", and the results were tweaked by hand
+; into something assemblable by dasm (and fairly compatible with other
+; assemblers).
+
+
+; START_ADDRESS is defined in col80_startaddr.s
+ .org START_ADDRESS
+
+; ----------------------------------------------------------------------------
+; Zero page labels (OS equates)
+
+DOSINI          = $000C
+ICAX1Z          = $002A
+ICAX2Z          = $002B
+TMPCHR          = $0050
+LMARGN          = $0052
+ROWCRS          = $0054
+COLCRS          = $0055
+DINDEX          = $0057
+SAVMSC          = $0058
+BUFCNT          = $006B
+
+; ----------------------------------------------------------------------------
+; Zero page labels (COL80 equates)
+
+screen_ptr_lo   = $00CB
+screen_ptr_hi   = $00CC
+font_ptr_lo     = $00CD
+font_ptr_hi     = $00CE
+
+; ----------------------------------------------------------------------------
+; Non-zeropage RAM labels (OS equates)
+
+COLOR1          = $02C5
+COLOR2          = $02C6
+RUNAD           = $02E0
+MEMTOP          = $02E5
+SSFLAG          = $02FF
+HATABS          = $031A
+ICCOM           = $0342
+ICBAL           = $0344
+ICBAH           = $0345
+
+; ----------------------------------------------------------------------------
+; Hardware (memory-mapped I/O, OS equates)
+
+CONSOL          = $D01F
+AUDF1           = $D200
+AUDC1           = $D201
+
+; ----------------------------------------------------------------------------
+; OS ROM labels
+
+s_dev_open_lo   = $E410 ; (not named in OS sources)
+s_dev_open_hi   = $E411 ; ""
+k_dev_get_lo    = $E424 ; ""
+k_dev_get_hi    = $E425 ; ""
+CIOV            = $E456 ; Central Input/Output entry point
+
+; ----------------------------------------------------------------------------
+; Start of COL80. The font is stored in packed form. Each group of 8 bytes
+; defines two glyphs: the upper 4 bits of the 8 bytes, taken together,
+; define the bitmap for the first glyph, and the lower 4 bits are the second.
+; Note that the bits that make up a single character are spread across 8
+; bytes, so it's hard to visualize these even if you're used to reading hex
+; dumps.
+
+; The first 2 characters look like:
+
+; .... .O.. ; $04
+; .... .O.. ; $04
+; O.O. .O.. ; $A4
+; OOO. .O.. ; $E4
+; OOO. .OOO ; $E7
+; .O.. .O.. ; $44
+; .... .O.. ; $04
+; .... .O.. ; $04
+
+; These are the ATASCII heart symbol (character code 0) and the ATASCII
+; control-A line-drawing symbol (code 1).
+
+; Note: unlike the ROM font, this font is stored in ATASCII order instead
+; of the standard Atari character order imposed by the hardware. Like
+; the ROM font, inverse characters are not stored here (the bitmaps get
+; inverted by the driver)
+
+font_data:
+        ; Low ATASCII graphics symbols (code 0-31)
+        .byte   $04,$04,$A4,$E4,$E7,$44,$04,$04 ; 7A00
+        .byte   $14,$14,$14,$14,$1C,$10,$10,$10 ; 7A08
+        .byte   $40,$40,$40,$40,$CC,$44,$44,$44 ; 7A10
+        .byte   $18,$18,$24,$24,$42,$42,$81,$81 ; 7A18
+        .byte   $10,$10,$30,$30,$73,$73,$F3,$F3 ; 7A20
+        .byte   $83,$83,$C3,$C3,$E0,$E0,$F0,$F0 ; 7A28
+        .byte   $CF,$CF,$C0,$C0,$00,$00,$00,$00 ; 7A30
+        .byte   $00,$00,$00,$00,$0C,$0C,$FC,$FC ; 7A38
+        .byte   $00,$00,$00,$40,$A7,$44,$E4,$04 ; 7A40
+        .byte   $04,$04,$04,$04,$FF,$04,$04,$04 ; 7A48
+        .byte   $00,$00,$60,$F0,$FF,$6F,$0F,$0F ; 7A50
+        .byte   $80,$80,$80,$80,$8F,$84,$84,$84 ; 7A58
+        .byte   $4C,$4C,$4C,$4C,$FC,$0C,$0C,$0C ; 7A60
+        .byte   $40,$4C,$48,$4C,$78,$0C,$06,$00 ; 7A68
+        .byte   $00,$44,$E4,$44,$4E,$44,$00,$00 ; 7A70
+        .byte   $00,$24,$42,$FF,$42,$24,$00,$00 ; 7A78
+
+        ; Space ! " # etc (codes 32-63)
+        .byte   $00,$04,$04,$04,$04,$00,$04,$00 ; 7A80
+        .byte   $00,$A0,$AA,$AE,$0A,$0E,$0A,$00 ; 7A88
+        .byte   $00,$40,$68,$82,$44,$28,$C2,$40 ; 7A90
+        .byte   $00,$C4,$64,$E4,$60,$C0,$40,$00 ; 7A98
+        .byte   $00,$44,$82,$82,$82,$82,$82,$44 ; 7AA0
+        .byte   $00,$04,$A4,$4E,$E4,$44,$A0,$00 ; 7AA8
+        .byte   $00,$00,$00,$0E,$00,$40,$40,$80 ; 7AB0
+        .byte   $00,$02,$02,$04,$04,$08,$48,$00 ; 7AB8
+        .byte   $00,$E4,$AC,$A4,$A4,$A4,$EE,$00 ; 7AC0
+        .byte   $00,$EE,$22,$22,$EE,$82,$EE,$00 ; 7AC8
+        .byte   $00,$AE,$A8,$AE,$E2,$22,$2E,$00 ; 7AD0
+        .byte   $00,$EE,$82,$E2,$A4,$A4,$E4,$00 ; 7AD8
+        .byte   $00,$EE,$AA,$EA,$AE,$A2,$EE,$00 ; 7AE0
+        .byte   $00,$00,$00,$44,$00,$44,$04,$08 ; 7AE8
+        .byte   $00,$20,$4E,$80,$4E,$20,$00,$00 ; 7AF0
+        .byte   $00,$8C,$42,$22,$44,$80,$04,$00 ; 7AF8
+
+        ; @ A B C etc (codes 64-95)
+        .byte   $00,$6E,$9A,$BA,$BE,$8A,$6A,$00 ; 7B00
+        .byte   $00,$C6,$A8,$C8,$A8,$A8,$C6,$00 ; 7B08
+        .byte   $00,$CE,$A8,$AC,$A8,$A8,$CE,$00 ; 7B10
+        .byte   $00,$E6,$88,$C8,$8A,$8A,$86,$00 ; 7B18
+        .byte   $00,$AE,$A4,$E4,$A4,$A4,$AE,$00 ; 7B20
+        .byte   $00,$2A,$2A,$2C,$2A,$2A,$CA,$00 ; 7B28
+        .byte   $00,$8A,$8E,$8E,$8A,$8A,$EA,$00 ; 7B30
+        .byte   $00,$C4,$AA,$AA,$AA,$AA,$A4,$00 ; 7B38
+        .byte   $00,$EE,$AA,$EA,$8A,$8A,$8E,$03 ; 7B40
+        .byte   $00,$C6,$A8,$AC,$C2,$A2,$AC,$00 ; 7B48
+        .byte   $00,$EA,$4A,$4A,$4A,$4A,$4E,$00 ; 7B50
+        .byte   $00,$AA,$AA,$AA,$AE,$AE,$4A,$00 ; 7B58
+        .byte   $00,$AA,$4A,$4E,$44,$44,$A4,$00 ; 7B60
+        .byte   $00,$EE,$28,$48,$88,$88,$E8,$0E ; 7B68
+        .byte   $00,$8E,$82,$42,$42,$22,$22,$0E ; 7B70
+        .byte   $00,$00,$40,$A0,$00,$00,$00,$0F ; 7B78
+
+        ; diamond, lowercase letters, control codes (codes 96-127)
+        .byte   $00,$00,$00,$46,$E2,$4E,$0E,$00 ; 7B80
+        .byte   $00,$80,$80,$C6,$A8,$A8,$C6,$00 ; 7B88
+        .byte   $00,$20,$20,$6E,$AE,$A8,$6E,$00 ; 7B90
+        .byte   $00,$00,$C0,$86,$CA,$8E,$82,$0C ; 7B98
+        .byte   $00,$80,$84,$80,$C4,$A4,$A4,$00 ; 7BA0
+        .byte   $00,$08,$28,$0A,$2C,$2A,$2A,$C0 ; 7BA8
+        .byte   $00,$40,$40,$4A,$4E,$4A,$4A,$00 ; 7BB0
+        .byte   $00,$00,$00,$CE,$AA,$AA,$AE,$00 ; 7BB8
+        .byte   $00,$00,$00,$C6,$AA,$C6,$82,$82 ; 7BC0
+        .byte   $00,$00,$00,$6E,$88,$86,$8E,$00 ; 7BC8
+        .byte   $00,$00,$40,$EA,$4A,$4A,$6E,$00 ; 7BD0
+        .byte   $00,$00,$00,$AA,$AA,$AE,$4A,$00 ; 7BD8
+        .byte   $00,$00,$00,$AA,$4A,$A6,$A2,$0C ; 7BE0
+        .byte   $00,$00,$04,$EE,$4E,$84,$EE,$00 ; 7BE8
+        .byte   $40,$4E,$4C,$4E,$4A,$42,$42,$40 ; 7BF0
+        .byte   $00,$28,$6C,$EE,$6C,$28,$00,$00 ; 7BF8
+
+right_margin:
+        ; Default value is 79 decimal. Unsure why the author didn't use RMARGN at $53
+        .byte   $4F                             ; 7C00 4F
+
+; ----------------------------------------------------------------------------
+; Start of COL80 code.
+
+; Callback for CIO OPEN command.
+
+col80_open:
+        jsr     init_graphics_8                 ; 7C01 20 14 7C
+        lda     #$00                            ; 7C04 A9 00
+        sta     ROWCRS                          ; 7C06 85 54
+        sta     COLCRS                          ; 7C08 85 55
+        nop                                     ; 7C0A EA
+        nop                                     ; 7C0B EA
+        sta     BUFCNT                          ; 7C0C 85 6B
+        lda     #$4F                            ; 7C0E A9 4F
+        sta     right_margin                    ; 7C10 8D 00 7C
+        rts                                     ; 7C13 60
+
+; ----------------------------------------------------------------------------
+; Assembly version of GRAPHICS 8+16 command.
+
+init_graphics_8:
+        lda     #$08                            ; 7C14 A9 08
+        sta     ICAX2Z                          ; 7C16 85 2B
+        lda     #$0C                            ; 7C18 A9 0C
+        sta     ICAX1Z                          ; 7C1A 85 2A
+        jsr     open_s_dev                      ; 7C1C 20 37 7C
+
+        ; Set COL80's default colors
+        lda     #$08                            ; 7C1F A9 08
+        sta     COLOR2                          ; 7C21 8D C6 02
+        nop                                     ; 7C24 EA
+        nop                                     ; 7C25 EA
+        nop                                     ; 7C26 EA
+        lda     #$00                            ; 7C27 A9 00
+        sta     COLOR1                          ; 7C29 8D C5 02
+
+        ; Protect ourselves from BASIC and the OS
+        lda     #<START_ADDRESS                 ; 7C2C A9 00
+        sta     MEMTOP                          ; 7C2E 8D E5 02
+        lda     #>START_ADDRESS                 ; 7C31 A9 7A
+        sta     MEMTOP+1                        ; 7C33 8D E6 02
+        rts                                     ; 7C36 60
+
+; ----------------------------------------------------------------------------
+; Call the OPEN vector for the S: device, using the ROM vector table
+; at $E410. The table stores address-minus-one of each routine, which is
+; meant to actually be called via the RTS instruction (standard 6502
+; technique, but confusing the first time you encounter it)
+
+open_s_dev:
+        lda     s_dev_open_hi                   ; 7C37 AD 11 E4
+        pha                                     ; 7C3A 48
+        lda     s_dev_open_lo                   ; 7C3B AD 10 E4
+        pha                                     ; 7C3E 48
+        rts                                     ; 7C3F 60
+
+; ----------------------------------------------------------------------------
+; Callback for CIO CLOSE command. Note that the routine does nothing, really
+; (the OS will mark the E: device as being closed, but COL80 doesn't do any
+; cleanup).
+; The SPECIAL and GET STATUS callbacks in col80_vector_tab also point here.
+
+col80_close:
+        jmp return_success
+
+; ----------------------------------------------------------------------------
+; Callback for the internal put-one-byte, used by the OS to implement the
+; CIO PUT RECORD and PUT BYTES commands. This routine's one argument is
+; the byte in the accumulator (the character to print).
+
+; First, the routine checks for the cursor control characters it supports.
+; COL80 only handles the EOL and clear-screen codes; trying to print
+; backspaces, arrows, deletes, inserts, etc just causes their ATASCII
+; graphics character to print instead.
+
+col80_putbyte:
+        ; EOL (decimal 155)?
+        cmp     #$9B                            ; 7C43 C9 9B
+        bne     check_clear                     ; 7C45 D0 08
+        lda     right_margin                    ; 7C47 AD 00 7C
+        sta     COLCRS                          ; 7C4A 85 55
+        jmp     skip_write                      ; 7C4C 4C 7C 7C
+
+check_clear:
+        ; Clear (decimal 125)?
+        cmp     #$7D                            ; 7C4F C9 7D
+        bne     regular_char                    ; 7C51 D0 03
+        jmp     clear_screen                    ; 7C53 4C 0B 7D
+
+        ; See if this is an inverse video char (code >= 128)
+regular_char:
+        tax                                     ; 7C56 AA
+        bpl     not_inverse                     ; 7C57 10 07
+        lda     #$FF                            ; 7C59 A9 FF
+        sta     inverse_mask                    ; 7C5B 8D 49 7F
+        bne     skip_ninv                       ; 7C5E D0 05
+
+not_inverse:
+        lda     #$00                            ; 7C60 A9 00
+        sta     inverse_mask                    ; 7C62 8D 49 7F
+
+skip_ninv:
+        txa                                     ; 7C65 8A
+        and     #$7F                            ; 7C66 29 7F
+        sta     TMPCHR                          ; 7C68 85 50
+        lda     DINDEX                          ; 7C6A A5 57
+        cmp     #$08                            ; 7C6C C9 08
+        beq     graphics_ok                     ; 7C6E F0 03
+        ; If we're not in GRAPHICS 8 mode, reinitialize ourselves
+        jsr     col80_open                     ; 7C70 20 01 7C
+
+graphics_ok:
+        ; Call the routines that actually print the character
+        jsr     setup_font_ptr                  ; 7C73 20 C9 7C
+        jsr     setup_screen_ptr                ; 7C76 20 34 7D
+        jsr     write_font_data                 ; 7C79 20 82 7D
+
+skip_write:
+        ; Move the cursor 1 space to the right. This will
+        ; advance us to the next line if we're at the margin,
+        ; and scroll the screen if needed
+        jsr     advance_cursor                  ; 7C7C 20 EE 7C
+
+check_ssflag:
+        ; The OS keyboard interrupt handler will toggle SSFLAG (start/stop fla
+        ; any time the user presses ctrl-1
+        lda     SSFLAG                          ; 7C7F AD FF 02
+        bne     check_ssflag                    ; 7C82 D0 FB
+        jmp     return_success                  ; 7C84 4C 31 7D
+
+; ----------------------------------------------------------------------------
+; Scroll the screen up one line (8 scanlines). This has to move almost 8K of
+; data, so it's noticeably slower than scrolling the GR.0 text screen.
+
+scroll_screen:
+        lda     SAVMSC                          ; 7C87 A5 58
+        sta     screen_ptr_lo                   ; 7C89 85 CB
+        clc                                     ; 7C8B 18
+        adc     #$40                            ; 7C8C 69 40
+        ; font_ptr_lo is actually being used here as a second pointer into
+        ; screen RAM, instead of its usual use as a pointer into the
+        ; font_data table
+        sta     font_ptr_lo                     ; 7C8E 85 CD
+        lda     SAVMSC+1                        ; 7C90 A5 59
+        sta     screen_ptr_hi                   ; 7C92 85 CC
+        adc     #$01                            ; 7C94 69 01
+        sta     font_ptr_hi                     ; 7C96 85 CE
+        ldx     #$1D                            ; 7C98 A2 1D
+        ldy     #$00                            ; 7C9A A0 00
+
+scroll_line_loop:
+        lda     (font_ptr_lo),y                 ; 7C9C B1 CD
+        sta     (screen_ptr_lo),y               ; 7C9E 91 CB
+        dey                                     ; 7CA0 88
+        bne     scroll_line_loop                ; 7CA1 D0 F9
+        inc     font_ptr_hi                     ; 7CA3 E6 CE
+        inc     screen_ptr_hi                   ; 7CA5 E6 CC
+        dex                                     ; 7CA7 CA
+        bne     scroll_line_loop                ; 7CA8 D0 F2
+
+blank_bottom_row:
+        lda     SAVMSC                          ; 7CAA A5 58
+        clc                                     ; 7CAC 18
+        adc     #$C0                            ; 7CAD 69 C0
+        sta     screen_ptr_lo                   ; 7CAF 85 CB
+        lda     SAVMSC+1                        ; 7CB1 A5 59
+        adc     #$1C                            ; 7CB3 69 1C
+        sta     screen_ptr_hi                   ; 7CB5 85 CC
+        lda     #$00                            ; 7CB7 A9 00
+        tay                                     ; 7CB9 A8
+
+blank_loop:
+        sta     (screen_ptr_lo),y               ; 7CBA 91 CB
+        dey                                     ; 7CBC 88
+        bne     blank_loop                      ; 7CBD D0 FB
+        inc     screen_ptr_hi                   ; 7CBF E6 CC
+        ldy     #$40                            ; 7CC1 A0 40
+
+blank_tail:
+        sta     (screen_ptr_lo),y               ; 7CC3 91 CB
+        dey                                     ; 7CC5 88
+        bpl     blank_tail                      ; 7CC6 10 FB
+        rts                                     ; 7CC8 60
+
+; ----------------------------------------------------------------------------
+; Set up font_ptr_lo/hi to point to the font_data bitmap for the character in
+; TMPCHR. Also sets lo_nybble_flag to let the caller know whether the
+; bitmap is in the upper or lower 4 bits of the bytes pointed to.
+
+setup_font_ptr:
+        lda     #$00                            ; 7CC9 A9 00
+        sta     font_ptr_hi                     ; 7CCB 85 CE
+        sta     lo_nybble_flag                  ; 7CCD 8D 48 7F
+        lda     TMPCHR                          ; 7CD0 A5 50
+        clc                                     ; 7CD2 18
+        ror                                     ; 7CD3 6A
+        bcc     font_hi_nybble                  ; 7CD4 90 05
+        ldx     #$FF                            ; 7CD6 A2 FF
+        stx     lo_nybble_flag                  ; 7CD8 8E 48 7F
+
+font_hi_nybble:
+        clc                                     ; 7CDB 18
+        rol                                     ; 7CDC 2A
+        rol                                     ; 7CDD 2A
+        rol     font_ptr_hi                     ; 7CDE 26 CE
+        rol                                     ; 7CE0 2A
+        rol     font_ptr_hi                     ; 7CE1 26 CE
+        adc     #<font_data                     ; 7CE3 69 00
+        sta     font_ptr_lo                     ; 7CE5 85 CD
+        lda     #>font_data                     ; 7CE7 A9 7A
+        adc     font_ptr_hi                     ; 7CE9 65 CE
+        sta     font_ptr_hi                     ; 7CEB 85 CE
+        rts                                     ; 7CED 60
+
+; ----------------------------------------------------------------------------
+; Move the cursor one space to the right (to the next line if at the margin,
+; and scroll screen if on the last row)
+
+advance_cursor:
+        inc     COLCRS                          ; 7CEE E6 55
+        lda     right_margin                   ; 7CF0 AD 00 7C
+        cmp     COLCRS                          ; 7CF3 C5 55
+        bcs     same_line                       ; 7CF5 B0 13
+        lda     LMARGN                          ; 7CF7 A5 52
+        sta     COLCRS                          ; 7CF9 85 55
+        lda     ROWCRS                          ; 7CFB A5 54
+        ; $17 is 25 decimal, one row below the lowest on the screen
+        cmp     #$17                            ; 7CFD C9 17
+        bcc     no_scroll                       ; 7CFF 90 07
+        jsr     scroll_screen                   ; 7D01 20 87 7C
+        ; Move to row 24 after scrolling
+        lda     #$16                            ; 7D04 A9 16
+        sta     ROWCRS                          ; 7D06 85 54
+
+no_scroll:
+        inc     ROWCRS                          ; 7D08 E6 54
+
+same_line:
+        rts                                     ; 7D0A 60
+
+; ----------------------------------------------------------------------------
+; Clear the screen by setting all screen RAM bytes to zero. Slow, but not
+; as slow as scrolling.
+
+clear_screen:
+        lda     SAVMSC                          ; 7D0B A5 58
+        sta     screen_ptr_lo                   ; 7D0D 85 CB
+        lda     SAVMSC+1                        ; 7D0F A5 59
+        sta     screen_ptr_hi                   ; 7D11 85 CC
+        ldy     #$00                            ; 7D13 A0 00
+        ldx     #$1D                            ; 7D15 A2 1D
+        lda     #$00                            ; 7D17 A9 00
+
+cls_loop:
+        sta     (screen_ptr_lo),y               ; 7D19 91 CB
+        dey                                     ; 7D1B 88
+        bne     cls_loop                        ; 7D1C D0 FB
+        inc     screen_ptr_hi                   ; 7D1E E6 CC
+        dex                                     ; 7D20 CA
+        bne     cls_loop                        ; 7D21 D0 F6
+        jsr     blank_bottom_row                ; 7D23 20 AA 7C
+        lda     LMARGN                          ; 7D26 A5 52
+        sta     COLCRS                          ; 7D28 85 55
+        lda     #$00                            ; 7D2A A9 00
+        sta     ROWCRS                          ; 7D2C 85 54
+        ; redundant JMP
+        jmp     return_success                  ; 7D2E 4C 31 7D
+
+; ----------------------------------------------------------------------------
+; CIO expects the Y register to contain a status code.
+; 1 means success (no error). Lots of COL80's routines
+; jump here.
+
+return_success:
+        ldy     #$01                            ; 7D31 A0 01
+        rts                                     ; 7D33 60
+
+; ----------------------------------------------------------------------------
+; Set screen_ptr_lo/hi to point to the address of the first byte of graphics
+; data at the current cursor position.
+
+setup_screen_ptr:
+        ldy     ROWCRS                          ; 7D34 A4 54
+        lda     SAVMSC                          ; 7D36 A5 58
+        clc                                     ; 7D38 18
+        adc     row_low_offset_tab,y            ; 7D39 79 52 7D
+        sta     screen_ptr_lo                   ; 7D3C 85 CB
+        lda     SAVMSC+1                        ; 7D3E A5 59
+        adc     row_high_offset_tab,y           ; 7D40 79 6A 7D
+        sta     screen_ptr_hi                   ; 7D43 85 CC
+        lda     COLCRS                          ; 7D45 A5 55
+        lsr                                     ; 7D47 4A
+        clc                                     ; 7D48 18
+        adc     screen_ptr_lo                   ; 7D49 65 CB
+        bcc     hi_byte_ok                      ; 7D4B 90 02
+        inc     screen_ptr_hi                   ; 7D4D E6 CC
+
+hi_byte_ok:
+        sta     screen_ptr_lo                   ; 7D4F 85 CB
+        rts                                     ; 7D51 60
+
+; ----------------------------------------------------------------------------
+; Tables of offsets for setup_screen_ptr, to avoid doing multiplication at
+; runtime (the 6502 lacks a MUL instruction, so it's slow...)
+
+row_low_offset_tab:
+        .byte   $00,$40,$80,$C0,$00,$40,$80,$C0 ; 7D52
+        .byte   $00,$40,$80,$C0,$00,$40,$80,$C0 ; 7D5A
+        .byte   $00,$40,$80,$C0,$00,$40,$80,$C0 ; 7D62
+
+row_high_offset_tab:
+        .byte   $00,$01,$02,$03,$05,$06,$07,$08 ; 7D6A
+        .byte   $0A,$0B,$0C,$0D,$0F,$10,$11,$12 ; 7D72
+        .byte   $14,$15,$16,$17,$19,$1A,$1B,$1C ; 7D7A
+
+; ----------------------------------------------------------------------------
+; Copy pixel data from the font table to screen RAM.
+; font_ptr_lo/hi must point to the correct character, and screen_ptr_lo/hi
+; must point to the correct screen address for the current cursor position.
+; This routine has separate execution paths for even- and odd-numbered
+; cursor positions, since each byte of screen RAM holds data for two
+; adjacent characters (and when printing to one of them, the other needs
+; to be left undisturbed!)
+
+write_font_data:
+        lda     COLCRS                          ; 7D82 A5 55
+        clc                                     ; 7D84 18
+        ror                                     ; 7D85 6A
+        bcc     write_font_data_even            ; 7D86 90 31
+        ldx     #$00                            ; 7D88 A2 00
+        ldy     #$00                            ; 7D8A A0 00
+
+get_font_nybble_odd:
+        lda     (font_ptr_lo),y                 ; 7D8C B1 CD
+        bit     lo_nybble_flag                  ; 7D8E 2C 48 7F
+        bne     lo_nybble_odd                   ; 7D91 D0 04
+        ; glyph we want is stored in top 4 bits of font byte,
+        ; shift it down to the bottom 4 bits
+        lsr                                     ; 7D93 4A
+        lsr                                     ; 7D94 4A
+        lsr                                     ; 7D95 4A
+        lsr                                     ; 7D96 4A
+
+lo_nybble_odd:
+        eor     inverse_mask                    ; 7D97 4D 49 7F
+        and     #$0F                            ; 7D9A 29 0F
+        sta     TMPCHR                          ; 7D9C 85 50
+        ldy     scanline_offset_tab,x           ; 7D9E BC EA 7D
+        lda     (screen_ptr_lo),y               ; 7DA1 B1 CB
+        and     #$F0                            ; 7DA3 29 F0
+        ora     TMPCHR                          ; 7DA5 05 50
+        sta     (screen_ptr_lo),y               ; 7DA7 91 CB
+        inx                                     ; 7DA9 E8
+        cpx     #$07                            ; 7DAA E0 07
+        bne     screen_ptr_ok_odd               ; 7DAC D0 02
+        inc     screen_ptr_hi                   ; 7DAE E6 CC
+
+screen_ptr_ok_odd:
+        cpx     #$08                            ; 7DB0 E0 08
+        beq     write_font_done_odd             ; 7DB2 F0 04
+        txa                                     ; 7DB4 8A
+        tay                                     ; 7DB5 A8
+        bne     get_font_nybble_odd             ; 7DB6 D0 D4
+
+write_font_done_odd:
+        rts                                     ; 7DB8 60
+
+; ----------------------------------------------------------------------------
+; Write data to even-numbered columns, very similar to the above
+
+write_font_data_even:
+        ldx     #$00                            ; 7DB9 A2 00
+        ldy     #$00                            ; 7DBB A0 00
+
+get_font_nybble_even:
+        lda     (font_ptr_lo),y                 ; 7DBD B1 CD
+        bit     lo_nybble_flag                  ; 7DBF 2C 48 7F
+        beq     hi_nybble_even                  ; 7DC2 F0 04
+        asl                                     ; 7DC4 0A
+        asl                                     ; 7DC5 0A
+        asl                                     ; 7DC6 0A
+        asl                                     ; 7DC7 0A
+
+hi_nybble_even:
+        eor     inverse_mask                    ; 7DC8 4D 49 7F
+        and     #$F0                            ; 7DCB 29 F0
+        sta     TMPCHR                          ; 7DCD 85 50
+        ldy     scanline_offset_tab,x           ; 7DCF BC EA 7D
+        lda     (screen_ptr_lo),y               ; 7DD2 B1 CB
+        and     #$0F                            ; 7DD4 29 0F
+        ora     TMPCHR                          ; 7DD6 05 50
+        sta     (screen_ptr_lo),y               ; 7DD8 91 CB
+        inx                                     ; 7DDA E8
+        cpx     #$07                            ; 7DDB E0 07
+        bne     screen_ptr_ok_even              ; 7DDD D0 02
+        inc     screen_ptr_hi                   ; 7DDF E6 CC
+
+screen_ptr_ok_even:
+        cpx     #$08                            ; 7DE1 E0 08
+        beq     write_font_done_even            ; 7DE3 F0 04
+        txa                                     ; 7DE5 8A
+        tay                                     ; 7DE6 A8
+        bne     get_font_nybble_even            ; 7DE7 D0 D4
+
+write_font_done_even:
+        rts                                     ; 7DE9 60
+
+; ----------------------------------------------------------------------------
+
+scanline_offset_tab:
+        .byte   $00,$28,$50,$78,$A0,$C8,$F0,$18 ; 7DEA
+
+; ----------------------------------------------------------------------------
+; Callback for the internal get-one-byte, used by the OS to implement the
+; CIO GET RECORD and GET BYTES commands. This routine takes no arguments,
+; and returns the read byte in the accumulator.
+
+; Internally, COL80 maintains a line buffer. Each time col80_getbyte is
+; called, it returns the next character in the buffer. If the buffer's
+; empty (or if the last call returned the last character), a new line
+; of input is read from the user (and the first character is returned).
+; This is exactly how the OS E: device works.
+
+col80_getbyte:
+        lda     BUFCNT                          ; 7DF2 A5 6B
+        beq     get_line                        ; 7DF4 F0 0E
+
+get_next_byte:
+        ldx     line_buffer_index               ; 7DF6 AE 4A 7F
+        lda     line_buffer,x                   ; 7DF9 BD 4B 7F
+        dec     BUFCNT                          ; 7DFC C6 6B
+        inc     line_buffer_index               ; 7DFE EE 4A 7F
+        jmp     return_success                  ; 7E01 4C 31 7D
+
+; ----------------------------------------------------------------------------
+; Get a line of input from the user, terminated by the Return key.
+
+get_line:
+        lda     #$00                            ; 7E04 A9 00
+        sta     BUFCNT                          ; 7E06 85 6B
+        sta     line_buffer_index               ; 7E08 8D 4A 7F
+
+show_cursor:
+        lda     #$20                            ; 7E0B A9 20
+        sta     TMPCHR                          ; 7E0D 85 50
+        lda     #$FF                            ; 7E0F A9 FF
+        sta     inverse_mask                    ; 7E11 8D 49 7F
+        jsr     setup_font_ptr                  ; 7E14 20 C9 7C
+        jsr     setup_screen_ptr                ; 7E17 20 34 7D
+        jsr     write_font_data                 ; 7E1A 20 82 7D
+        jsr     get_keystroke                   ; 7E1D 20 B7 7E
+        cpy     #$01                            ; 7E20 C0 01
+        beq     keystroke_ok                    ; 7E22 F0 07
+        ldy     #$00                            ; 7E24 A0 00
+        sty     line_buffer_index               ; 7E26 8C 4A 7F
+        sty     BUFCNT                          ; 7E29 84 6B
+
+keystroke_ok:
+        cmp     #$9B                            ; 7E2B C9 9B
+        bne     check_backs_key                 ; 7E2D D0 03
+        jmp     return_key_hit                  ; 7E2F 4C 52 7E
+
+check_backs_key:
+        cmp     #$7E                            ; 7E32 C9 7E
+        bne     check_clear_key                 ; 7E34 D0 03
+        jmp     backs_key_hit                   ; 7E36 4C 71 7E
+
+check_clear_key:
+        cmp     #$7D                            ; 7E39 C9 7D
+        bne     normal_key_hit                  ; 7E3B D0 03
+        jmp     clear_key_hit                   ; 7E3D 4C 64 7E
+
+normal_key_hit:
+        ldx     BUFCNT                          ; 7E40 A6 6B
+        bpl     buffer_character                ; 7E42 10 03
+        jmp     beep                            ; 7E44 4C 8F 7E
+
+buffer_character:
+        sta     line_buffer,x                   ; 7E47 9D 4B 7F
+        jsr     col80_putbyte                  ; 7E4A 20 43 7C
+        inc     BUFCNT                          ; 7E4D E6 6B
+        jmp     show_cursor                     ; 7E4F 4C 0B 7E
+
+return_key_hit:
+        jsr     print_space                     ; 7E52 20 A4 7E
+        lda     #$9B                            ; 7E55 A9 9B
+        ldx     BUFCNT                          ; 7E57 A6 6B
+        sta     line_buffer,x                   ; 7E59 9D 4B 7F
+        inc     BUFCNT                          ; 7E5C E6 6B
+        jsr     col80_putbyte                  ; 7E5E 20 43 7C
+        jmp     get_next_byte                   ; 7E61 4C F6 7D
+
+clear_key_hit:
+        jsr     clear_screen                    ; 7E64 20 0B 7D
+        lda     #$00                            ; 7E67 A9 00
+        sta     line_buffer_index               ; 7E69 8D 4A 7F
+        sta     BUFCNT                          ; 7E6C 85 6B
+        jmp     get_line                        ; 7E6E 4C 04 7E
+
+backs_key_hit:
+        jsr     print_space                     ; 7E71 20 A4 7E
+        lda     BUFCNT                          ; 7E74 A5 6B
+        beq     backs_key_done                  ; 7E76 F0 14
+        dec     COLCRS                          ; 7E78 C6 55
+        lda     COLCRS                          ; 7E7A A5 55
+        clc                                     ; 7E7C 18
+        adc     #$01                            ; 7E7D 69 01
+        cmp     LMARGN                          ; 7E7F C5 52
+        bne     backs_same_line                 ; 7E81 D0 07
+        lda     right_margin                    ; 7E83 AD 00 7C
+        sta     COLCRS                          ; 7E86 85 55
+        dec     ROWCRS                          ; 7E88 C6 54
+
+backs_same_line:
+        dec     BUFCNT                          ; 7E8A C6 6B
+
+backs_key_done:
+        jmp     show_cursor                     ; 7E8C 4C 0B 7E
+
+; ----------------------------------------------------------------------------
+; Ring the margin bell. COL80 doesn't implement the ctrl-2 bell (character
+; 253), and instead of using the GTIA keyclick speaker, it uses POKEY to
+; make a beep
+
+beep:   ldy     #$00                            ; 7E8F A0 00
+        ldx     #$AF                            ; 7E91 A2 AF
+
+beep_delay_x:
+        stx     AUDF1                           ; 7E93 8E 00 D2
+        stx     AUDC1                           ; 7E96 8E 01 D2
+
+beep_delay_y:
+        dey                                     ; 7E99 88
+        bne     beep_delay_y                    ; 7E9A D0 FD
+        dex                                     ; 7E9C CA
+        cpx     #$9F                            ; 7E9D E0 9F
+        bne     beep_delay_x                    ; 7E9F D0 F2
+        jmp     show_cursor                     ; 7EA1 4C 0B 7E
+
+; ----------------------------------------------------------------------------
+; Print a space character at the current cursor position. Does not
+; update the cursor position.
+print_space:
+        lda     #$00                            ; 7EA4 A9 00
+        sta     inverse_mask                    ; 7EA6 8D 49 7F
+        lda     #$20                            ; 7EA9 A9 20
+        sta     TMPCHR                          ; 7EAB 85 50
+        jsr     setup_font_ptr                  ; 7EAD 20 C9 7C
+        jsr     setup_screen_ptr                ; 7EB0 20 34 7D
+        jsr     write_font_data                 ; 7EB3 20 82 7D
+        rts                                     ; 7EB6 60
+
+; ----------------------------------------------------------------------------
+; Get a keystroke (blocking). Just calls the OS K: get-one-byte routine
+; (call by pushing address-minus-one then doing an RTS)
+get_keystroke:
+        lda     k_dev_get_hi                    ; 7EB7 AD 25 E4
+        pha                                     ; 7EBA 48
+        lda     k_dev_get_lo                    ; 7EBB AD 24 E4
+        pha                                     ; 7EBE 48
+        rts                                     ; 7EBF 60
+
+; ----------------------------------------------------------------------------
+; Initialization callback. The OS will call this on coldstart (or would do,
+; if the driver were in ROM), and also on warmstart (because we stole the
+; DOSINI vector).
+; This routine is also the first thing that gets called by the mainline
+; init code. Its job is to install COL80 in the handler table at HATABS.
+; Actually the handler is first installed as X:, then the main init code
+; fixes this up to E: unless the user is holding down SELECT. This allows
+; the user to toggle between the 40-column ROM E: and COL80 without doing
+; a full reboot. No idea if this was a documented feature or something the
+; author used for development/debugging.
+
+col80_init:
+        ldy     #$00                            ; 7EC0 A0 00
+
+next_hatab_slot:
+        lda     HATABS,y                        ; 7EC2 B9 1A 03
+        beq     register_x_handler              ; 7EC5 F0 0A
+        iny                                     ; 7EC7 C8
+        iny                                     ; 7EC8 C8
+        iny                                     ; 7EC9 C8
+        cpy     #$20                            ; 7ECA C0 20
+        bcc     next_hatab_slot                 ; 7ECC 90 F4
+        jmp     return_success                  ; 7ECE 4C 31 7D
+
+register_x_handler:
+        lda     #$58                            ; 7ED1 A9 58
+        sta     HATABS,y                        ; 7ED3 99 1A 03
+        lda     #<col80_vector_tab             ; 7ED6 A9 E5
+        iny                                     ; 7ED8 C8
+        sta     HATABS,y                        ; 7ED9 99 1A 03
+        lda     #>col80_vector_tab             ; 7EDC A9 7E
+        iny                                     ; 7EDE C8
+        sta     HATABS,y                        ; 7EDF 99 1A 03
+        jmp     return_success                  ; 7EE2 4C 31 7D
+
+; ----------------------------------------------------------------------------
+; COL80 vector table, in the format required by the OS. Our HATABS entry
+; will point to this table, and the OS will call the routines listed here
+; via the "call by RTS" method (which is why they're address-minus-one).
+
+; See the entry on HATABS in "Mapping the Atari" or the OS manual.
+
+col80_vector_tab:
+        .word   col80_open-1                   ; 7EE5 00 7C
+        .word   col80_close-1                  ; 7EE7 3F 7C
+        .word   col80_getbyte-1                ; 7EE9 F1 7D
+        .word   col80_putbyte-1                ; 7EEB 42 7C
+        .word   col80_close-1                  ; 7EED 3F 7C
+        .word   col80_close-1                  ; 7EEF 3F 7C
+        jmp     col80_init                     ; 7EF1 4C C0 7E
+
+; ----------------------------------------------------------------------------
+; The OS jumps here on warmstart (also, this is the run address in our
+; binary load file)
+
+dosini_entry_point:
+        nop                                     ; 7EF4 EA
+        nop                                     ; 7EF5 EA
+        nop                                     ; 7EF6 EA
+
+main_entry_point:
+        jsr     col80_init                     ; 7EF7 20 C0 7E
+        lda     CONSOL                          ; 7EFA AD 1F D0
+        and     #$04                            ; 7EFD 29 04
+        beq     no_e_handler                    ; 7EFF F0 2F
+        lda     #$0C                            ; 7F01 A9 0C
+        sta     ICCOM                           ; 7F03 8D 42 03
+        ldx     #$00                            ; 7F06 A2 00
+        jsr     CIOV                            ; 7F08 20 56 E4
+        lda     #$58                            ; 7F0B A9 58
+        sta     font_ptr_lo                     ; 7F0D 85 CD
+        lda     #$03                            ; 7F0F A9 03
+        sta     ICCOM                           ; 7F11 8D 42 03
+        lda     #$CD                            ; 7F14 A9 CD
+        sta     ICBAL                           ; 7F16 8D 44 03
+        lda     #$00                            ; 7F19 A9 00
+        sta     ICBAH                           ; 7F1B 8D 45 03
+        ldx     #$00                            ; 7F1E A2 00
+        jsr     CIOV                            ; 7F20 20 56 E4
+        ldy     #$07                            ; 7F23 A0 07
+        lda     #<col80_vector_tab             ; 7F25 A9 E5
+        sta     HATABS,y                        ; 7F27 99 1A 03
+        lda     #>col80_vector_tab             ; 7F2A A9 7E
+        iny                                     ; 7F2C C8
+        sta     HATABS,y                        ; 7F2D 99 1A 03
+no_e_handler:
+        lda     #<START_ADDRESS                 ; 7F30 A9 00
+        sta     MEMTOP                          ; 7F32 8D E5 02
+        lda     #>START_ADDRESS                 ; 7F35 A9 7A
+        sta     MEMTOP+1                        ; 7F37 8D E6 02
+        jmp     return_success                  ; 7F3A 4C 31 7D
+
+; ----------------------------------------------------------------------------
+; (when does this actually get called? da65 can't find any references
+; to it, and it's not a run or init address in the binary load file)
+        lda     #<dosini_entry_point            ; 7F3D A9 F4
+        sta     DOSINI                          ; 7F3F 85 0C
+        lda     #>dosini_entry_point            ; 7F41 A9 7E
+        sta     DOSINI+1                        ; 7F43 85 0D
+        jmp     main_entry_point                ; 7F45 4C F7 7E
+
+; ----------------------------------------------------------------------------
+; Various bits of runtime state here. It's unclear to me why the standard
+; OS buffer location couldn't have been used instead (normally the top
+; half of page 5), or why the other stuff couldn't have been stored in
+; zero page, in locations used by the ROM E: handler (thus unused when
+; it's replaced with COL80). line_buffer_index needs to be preserved
+; across calls to col80_getbyte, but lo_nybble_flag and inverse_mask are
+; freshly calculated every time they're used, so they could be almost
+; anywhere.
+
+lo_nybble_flag:
+        .byte   $00                             ; 7F48 00
+
+inverse_mask:
+        .byte   $00                             ; 7F49 00
+
+line_buffer_index:
+        .byte   $12                             ; 7F4A 12
+
+; ----------------------------------------------------------------------------
+; There's absolutely no reason why this data needs to be included in the
+; binary load file: the line buffer's initial contents are meaningless, they
+; will be blown away the first time anything reads from the E: device.
+
+; Notice the author was running his debugger in COL80 when he built the
+; binary (ASCII "S COL80 7A00 7F80" command still in the buffer).
+
+line_buffer:
+        .byte   $53,$20,$43,$4F,$4C,$38,$30,$20 ; 7F4B
+        .byte   $37,$41,$30,$30,$20,$37,$46,$38 ; 7F53
+        .byte   $30,$9B,$20,$20,$20,$20,$9B,$27 ; 7F5B
+        .byte   $40,$40,$40,$40,$28,$28,$28,$28 ; 7F63
+        .byte   $40,$40,$40,$40,$40,$40,$40,$40 ; 7F6B
+        .byte   $40,$40,$40,$40,$40,$40,$40,$40 ; 7F73
+        .byte   $9B,$FD,$FD,$FD,$FD,$9B         ; 7F7B
+
+END_ADDRESS = *-1
+
+; I've found a variant (modified version?) of this code, that doesn't
+; include the line_buffer in the file (no reason for it to be there),
+; or the $0C segment, and that has another segment, loaded at $6000,
+; with the run address changed to $6000.  The code looks like:
+
+; .org $6000
+; jsr dosini_entry_point
+; lda #$50
+; sta RMARGN
+; lda #$00
+; sta COLOR2
+
+; also, the default colors have been changed in init_graphics_8.
+
+; There are at least two binaries floating around that contain
+; extra (garbage) bytes at the end, presumably from being transferred
+; over XMODEM or similar. They are otherwise identical.
+

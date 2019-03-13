@@ -1,0 +1,47 @@
+
+
+ifdef APPS
+  APPDIRS = $(foreach APP, $(APPS), ../uip/apps/$(APP))
+  -include $(foreach APP, $(APPS), ../uip/apps/$(APP)/Makefile.$(APP))
+  CFLAGS += $(addprefix -I../uip/apps/,$(APPS))
+endif
+
+ifndef CCDEP
+  CCDEP = $(CC)
+endif
+ifndef CCDEPCFLAGS
+  CCDEPCFLAGS = $(CFLAGS)
+endif
+ifndef OBJECTDIR
+  OBJECTDIR = obj
+endif
+
+ifeq (${wildcard $(OBJECTDIR)},)
+  DUMMY := ${shell mkdir $(OBJECTDIR)}
+endif
+
+
+vpath %.c . ../uip/uip ../uip/lib $(APPDIRS)
+
+$(OBJECTDIR)/%.o: %.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+$(OBJECTDIR)/%.d: %.c
+	@set -e; rm -f $@; \
+	$(CCDEP) -MM $(CCDEPCFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,$(OBJECTDIR)/\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+UIP_SOURCES=uip.c uip_arp.c uiplib.c psock.c timer.c uip-neighbor.c
+
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(addprefix $(OBJECTDIR)/,$(UIP_SOURCES:.c=.d) \
+                                   $(APP_SOURCES:.c=.d))
+endif
+
+uip.a: ${addprefix $(OBJECTDIR)/, $(UIP_SOURCES:.c=.o)}
+	$(AR) a $@ $^
+
+apps.a: ${addprefix $(OBJECTDIR)/, $(APP_SOURCES:.c=.o)}
+	$(AR) a $@ $^
