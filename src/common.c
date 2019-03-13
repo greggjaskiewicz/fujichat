@@ -143,7 +143,7 @@ void set_default_config(void) {
 	config->resolver_ip[0] = 0xa8c0;
 	config->resolver_ip[1] = 0x0100;
 
-	strcpy(config->server, "na.newnet.net");
+	strcpy(config->server, "irc.freenode.org");
 	strcpy(config->nick, DEFAULT_NICK);
 	strcpy(config->real_name, "FujiChat User");
 	config->server_port = 6667;
