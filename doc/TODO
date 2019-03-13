@@ -1,0 +1,23 @@
+- port rs232.h code to new serial.h cc65 API, so we aren't stuck using
+  old versions of cc65.
+
+- port dasm stuff to ca65, so we only need one toolchain (the cc65 one).
+
+- tab-completion, by searching screen memory?
+
+- a bit of UTF-8 decoding. e.g. accented letters become 2 characters.
+  Spanish enya would be rendered as n, inverse ^ (since inverse ^ is
+  what we already use for the ~). Letter a with acute accent would
+  be "a" and "'", with grave accent the "'" is inverse. Degrees symbol
+  would be inverse lowercase o. Ellipses would just be 3 dots. Anything
+  we can't decode becomes inverse question mark. It would be really nice
+  to encode/decode the ATASCII graphics characters too.
+
+- support 'terminal server' devices, e.g. lantronix. These are devices
+  with an rs232 port + tcp/ip stack. Clients just talk rs232 and
+  the terminal server connects that to a remote host via TCP. Some
+  of these emulate modems (ATDT<ipaddress> for instance). Will require
+  some major surgery to split the SLIP stuff from the IRC protocol stuff.
+
+- support Dragon cart (or the other Ethernet cart, or the wireless one).
+  have to somehow get the hardware to test with first.

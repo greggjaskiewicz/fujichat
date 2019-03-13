@@ -1,0 +1,41 @@
+The user interface is pretty sparse. Incoming IRC messages are printed,
+and your input line is marked by the regular Atari cursor. Text you
+enter is displayed in inverse video. If IRC messages are received while
+you're entering an input line, they're printed correctly without being
+intermixed with your input.
+
+The Atari character set lacks some commonly used ASCII characters. Most
+noticeable on IRC is the ~ (tilde). FujiChat prints an inverse-video ^
+(circumflex) instead. Also missing are { and } (curly braces). These
+are printed as inverse-video [ ] (square brackets). There is currently
+no way to type the ~ { } characters!
+
+Non-ASCII (Unicode/UTF-8) characters are not decoded. Generally these
+print as inverse capital B followed by another inverse video character
+(these are the raw UTF-8 encoded bytes).
+
+There are a few keyboard commands available. Normal Atari editing doesn't
+work (cursor keys, crtl-insert, etc). The maximum input length is 256
+characters: if you try to type more than that, the bell will ring,
+and further keystrokes (other than Enter or backspace) will be ignored.
+
+At the start of an empty line:
+
+  Control-N: shows list of users on the current channel (same as
+             the /names command).
+
+  Control-W: shows more detailed list of users on the current channel
+             (same as the /who command).
+
+  Tab: inserts "/msg user", where user is the last user you received
+       a private message from.
+
+In the middle of a line:
+
+  Shift-Delete or Control-U: delete the line you're typing.
+
+  Control-W: delete the last word you typed (back to and including
+             the last space, or to the start of the line if there's
+             no space).
+
+  Backspace: delete the last character typed, as usual.
