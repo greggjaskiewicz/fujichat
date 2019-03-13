@@ -76,7 +76,7 @@ void cmd_ver(void) {
 }
 
 void cmd_ping(void) {
-	serv_msg_buf_len = sprintf(serv_msg_buf, "PRIVMSG %s %cPING %03d %03d %03d%c%c",
+	serv_msg_buf_len = sprintf(serv_msg_buf, "PRIVMSG %s :%cPING %03d %03d %03d%c%c",
 			cmd_arg, 1, PEEK(20), PEEK(19), PEEK(18), 1, NL);
 	send_serv_msg_buf();
 }
