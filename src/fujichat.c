@@ -186,14 +186,14 @@ void main(void) {
 		POKE(710, config->bg_color);
 		POKE(709, config->fg_color);
 
-		printf("Server name/IP, [C]onfig, or [D]OS\n");
+		printf("Server name/IP, [S]etup, or [D]OS\n");
 		printf("[%s]: ", config->server);
 		fflush(stdout);
 		get_line(cmdbuf, HOSTLEN);
 
 		if(strcasecmp(cmdbuf, "d") == 0) {
 			exit(0);
-		} else if(strcasecmp(cmdbuf, "c") == 0) {
+		} else if(strcasecmp(cmdbuf, "s") == 0) {
 			i = atari_exec(SETUP_FILENAME);
 			printf("Error %d!\n", i);
 			bell();

@@ -146,6 +146,11 @@ by FujiChat. This command usually isn't necessary: if FujiChat is given
 an unknown command, it will send it to the server as-is. /QUOTE is more
 useful for development and testing than for normal use.
 
+---
+Name: /CLEAR
+
+Clears the screen. Useful if someone's being nosey, maybe.
+
 -------------------------
 
 IRC protocol commands: any command you enter (starting with a slash) that
@@ -159,7 +164,7 @@ Name: /TIME
 Shows the server's current time. The format may vary, but usually looks
 something like:
 
-391 hitchcock.freenode.net :Wednesary March 13 2019 -- 10:08:11 +00:00
+391 hitchcock.freenode.net :Wednesday March 13 2019 -- 10:08:11 +00:00
 
 ---
 Name: /WHOIS

@@ -18,6 +18,7 @@ void cmd_quote(void);
 void cmd_ver(void);
 void cmd_version(void);
 void do_me(void);
+void cmd_clear(void);
 #ifdef FEAT_COLOR_COMMAND
 void cmd_fgcolor(void);
 void cmd_bgcolor(void);
@@ -36,6 +37,7 @@ fuji_cmd_t cmd_list[] = {
 	{ "VER", ARGTYPE_OPT, cmd_version },
 	{ "VERSION", ARGTYPE_OPT, cmd_version },
 	{ "ME", ARGTYPE_REQUIRED, do_me },
+	{ "CLEAR", ARGTYPE_NONE, cmd_clear },
 #ifdef FEAT_COLOR_COMMAND
 	{ "FGCOLOR", ARGTYPE_REQUIRED, cmd_fgcolor },
 	{ "BGCOLOR", ARGTYPE_REQUIRED, cmd_bgcolor },
@@ -138,6 +140,10 @@ void cmd_nick(void) {
 	strcpy(config->nick, cmd_arg);
 	send_server_cmd("NICK", cmd_arg);
 	printf("> You are now known as %s\n", config->nick);
+}
+
+void cmd_clear(void) {
+	putchar(125); /* ATASCII screen clear code */
 }
 
 #ifdef FEAT_COLOR_COMMAND
