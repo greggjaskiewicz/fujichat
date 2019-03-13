@@ -28,14 +28,16 @@ Paste that into your browser and "Save as", or else use wget to download it.
 
 To compile FujiChat:
 
-- First, install cc65.  Needs to be a snapshot or release later than the
+- Install cc65. Needs to be a snapshot or release later than the
   2.11.0 release, but older than about December, 2015. Version 2.13.3 is
   what the author currently uses. The code uses the old cc65 rs232.h API,
   which was replaced with a new serial.h API sometime in 2015. This will
   be rectified eventually.
 
-- Next, install axe. This can be found at http://urchlay.naptime.net/repos/axe/
+- Install axe. This can be found at http://urchlay.naptime.net/repos/axe/
   or use the clone URL git://urchlay.naptime.net/axe.git
+
+- Install dasm [TODO: version? URL?].
 
 Make sure cc65 and axe are both found in your $PATH, then:
 
