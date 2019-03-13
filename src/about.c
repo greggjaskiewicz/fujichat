@@ -50,4 +50,5 @@ void more(char *file) {
 int main(int, char **) {
 	more("D:ABOUT.TXT");
 	atari_exec(MENU_FILENAME);
+	return 0;
 }
