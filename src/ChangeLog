@@ -6,6 +6,10 @@ The source is now developed using git, meaning you'll find low-level
 details about changes in the git log. I'll try to remember to update
 this ChangeLog to document major new features and such.
 
+To get the code from git:
+
+git clone git://urchlay.naptime.net/fujichat.git
+
 - 20081201 bkw:
 
 Rewrote & reorganized handle_command(). It now lives in commands.c,

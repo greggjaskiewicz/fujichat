@@ -19,6 +19,13 @@ doc/   - documentation, including (possibly obsolete) design notes.
 src/   - FujiChat source, excluding uIP library.
 uip/   - Modified/hacked-up version of Adam Dunkels' uIP, used as a library.
 
+If you just want to run FujiChat and don't care about compiling it, you
+can grab the latest build from:
+
+http://urchlay.naptime.net/repos/fujichat/plain/src/fujichat.atr
+
+Paste that into your browser and "Save as", or else use wget to download it.
+
 To compile FujiChat:
 
 - First, install cc65.  Needs to be a snapshot or release later than the
