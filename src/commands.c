@@ -29,7 +29,7 @@ fuji_cmd_t cmd_list[] = {
 	{ "MSG", ARGTYPE_REQUIRED, cmd_msg },
 	{ "M", ARGTYPE_REQUIRED, cmd_msg },
 	{ "NICK", ARGTYPE_OPT, cmd_nick },
-	{ "PART", ARGTYPE_NONE, cmd_part },
+	{ "PART", ARGTYPE_OPT, cmd_part },
 	{ "PING", ARGTYPE_REQUIRED, cmd_ping },
 	{ "QUIT", ARGTYPE_OPT, cmd_quit },
 	{ "QUOTE", ARGTYPE_REQUIRED, cmd_quote },
@@ -108,7 +108,12 @@ void cmd_join(void) {
 
 void cmd_part(void) {
 	joined_channel = 0;
-	send_server_cmd("PART", channel);
+	if(cmd_arg) {
+		serv_msg_buf_len = sprintf(serv_msg_buf, "PART %s :%s%c", channel, cmd_arg, NL);
+		send_serv_msg_buf();
+	} else {
+		send_server_cmd("PART", channel);
+	}
 }
 
 void cmd_msg(void) {
