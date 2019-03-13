@@ -1,6 +1,9 @@
 #ifndef FEATURES_H
 #define FEATURES_H
 
+/* Note: just defining one of these doesn't result in a 64 or
+	80 column build. You also have to run mkfuji64.sh or
+	mkfuji80.sh to built the final .xex and disk image. */
 
 // #define FEAT_COL64_HACK
 // #define FEAT_COL80_HACK

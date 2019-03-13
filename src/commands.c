@@ -13,7 +13,7 @@ void cmd_msg(void);
 void cmd_nick(void);
 void cmd_part(void);
 void cmd_ping(void);
-// void cmd_quit(void);
+void cmd_quit(void);
 void cmd_quote(void);
 void cmd_ver(void);
 void do_me(void);
@@ -30,7 +30,7 @@ fuji_cmd_t cmd_list[] = {
 	{ "NICK", ARGTYPE_REQUIRED, cmd_nick },
 	{ "PART", ARGTYPE_NONE, cmd_part },
 	{ "PING", ARGTYPE_REQUIRED, cmd_ping },
-	// { "QUIT", ARGTYPE_OPT, cmd_quit },
+	{ "QUIT", ARGTYPE_OPT, cmd_quit },
 	{ "QUOTE", ARGTYPE_REQUIRED, cmd_quote },
 	{ "VER", ARGTYPE_REQUIRED, cmd_ver },
 	{ "VERSION", ARGTYPE_REQUIRED, cmd_ver },
@@ -104,7 +104,12 @@ void cmd_part(void) {
 }
 
 void cmd_msg(void) {
-	send_server_cmd("PRIVMSG", cmd_arg);
+	send_server_cmd_2arg("PRIVMSG", cmd_arg);
+}
+
+void cmd_quit(void) {
+	joined_channel = 0;
+	send_server_cmd("QUIT", cmd_arg);
 }
 
 void cmd_quote(void) {

@@ -84,6 +84,7 @@ extern char *input_buf;
 
 void send_serv_msg_buf(void);
 void send_server_cmd(char *cmd, char *arg);
+void send_server_cmd_2arg(char *cmd, char *arg);
 void handle_command(void);
 void bell();
 

@@ -578,12 +578,30 @@ void send_serv_msg_buf(void) {
 
 void send_server_cmd(char *cmd, char *arg) {
 	if(arg) {
-		serv_msg_buf_len = sprintf(serv_msg_buf, "%s %s%c", cmd, arg, NL);
+		serv_msg_buf_len = sprintf(serv_msg_buf, "%s :%s%c", cmd, arg, NL);
 	} else {
 		serv_msg_buf_len = sprintf(serv_msg_buf, "%s%c", cmd, NL);
 	}
 
 	send_serv_msg_buf();
+}
+
+/* 20190313 bkw: for the /msg command and similar. arg contains the
+	full argument (nick and text). We have to quote the text
+	with a colon. User enters "/m nick this stuff" and we say
+	to the server "PRIVMSG nick :this stuff" */
+void send_server_cmd_2arg(char *cmd, char *arg) {
+	char *p;
+
+	for(p = arg; *p; p++) {
+		if(*p == ' ') {
+			*p = '\0';
+			serv_msg_buf_len = sprintf(serv_msg_buf, "%s %s :%s%c", cmd, arg, p + 1, NL);
+			send_serv_msg_buf();
+			return;
+		}
+	}
+	puts("> Invalid argument");
 }
 
 /* The telnet_* functions are uIP application callbacks. */
