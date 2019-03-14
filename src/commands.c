@@ -143,7 +143,7 @@ void cmd_nick(void) {
 }
 
 void cmd_clear(void) {
-	putchar(125); /* ATASCII screen clear code */
+	fuji_putchar(0x7d); /* ATASCII screen clear code */
 }
 
 #ifdef FEAT_COLOR_COMMAND
@@ -220,7 +220,7 @@ void handle_command(void) {
 					err_arg_not_allowed();
 					return;
 				}
-				return;
+				break;
 
 			default:
 				break;

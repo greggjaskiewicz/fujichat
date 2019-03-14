@@ -1,3 +1,7 @@
+- move format_ip() from common.(c|h) to a new formatip.(c|h). Then
+  eliminate all printf() calls from fujimenu.c and makeauto.c. This
+  should reduce the binary size & speed up initial loads.
+
 - port rs232.h code to new serial.h cc65 API, so we aren't stuck using
   old versions of cc65.
 
