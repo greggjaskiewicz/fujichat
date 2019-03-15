@@ -5,7 +5,7 @@
 #include "common.h"
 
 /* TODO: rewrite in asm. This does NOT need to
-	be 7K of object code. */
+	be 5K of object code. */
 
 void more(char *file) {
 	char c, line = 0;
@@ -15,7 +15,8 @@ void more(char *file) {
 	putchar(0x7d);
 
 	if(!f) {
-		printf("%s not found\n", file);
+		fputs("Error reading ", stdout);
+		puts(file);
 		cgetc();
 		return;
 	}
