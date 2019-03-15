@@ -19,7 +19,7 @@ fujichat.xex: uip
 	mv uip fujichat.xex
 
 keybuf.o: keybuf.s
-	ca65 -t atari -l -o keybuf.o keybuf.s
+	ca65 -t atari -o keybuf.o keybuf.s
 
 common.o: common.c common.h
 	$(CC) $(CFLAGS) -c -o common.o common.c
