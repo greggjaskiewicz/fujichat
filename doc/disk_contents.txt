@@ -1,0 +1,106 @@
+Currently the disk is built from dos_20s.atr, with the "axe" utility.
+See the script mkdisk.sh to see how it's done.
+
+In case you're wondering about fujitest.atr, it's fujichat.atr plus the
+author's personal config file and serial driver, so I don't keep having
+to answer the config prompts every time I test a new build. The rest of
+this file describes only fujichat.atr.
+
+Reasons for distributing FujiChat as a bootable disk image:
+
+- It's "boot and go" for users who use real floppy drives or emulate
+  them with SIO2PC + software.
+
+- The setup process is automated and guides the user through. First
+  boot it asks what serial driver to use (then reboots). Next boot it
+  loads the menu with the Setup option as the default. Further boots,
+  the config file exists so Chat is the default menu option.
+
+- Since there's not enough memory to combine the menu, about, setup and
+  chat programs, they have to be separate files. Which means FujiChat
+  has to be distributed as a multi-file archive... I could have used
+  e.g. ZIP or ARC instead of ATR, but then floppy users would have to
+  create their own ATR image and copy the files to it.
+
+The only disadvantage is that hard disk users might want to "install"
+FujiChat to their drive. This can be done just by copying the contents
+of the ATR to a directory on the drive, then running FUJICONF.COM to
+create a config file and FUJICHAT.COM to actually use IRC (if the hard
+disk boot process already loaded an R: driver).
+
+Disk Contents
+-------------
+
+fujichat.atr is built from a DOS 2.0S floppy image containing only
+DOS.SYS and DUP.SYS. These are the files that go on the disk:
+
+ABOUT.COM
+ABOUT.TXT
+ATARI850.SER
+AUTORUN.SYS
+BOBVERT.SER
+FUJICHAT.COM
+FUJICONF.COM
+FUJIMENU.COM
+LOADMENU.COM
+MAKEAUTO.COM
+PRCONN.SER
+
+One thing missing from the disk is the config file, FUJICHAT.CFG. This
+is created by FUJICONF.COM (see below). If you load FUJICHAT.COM without
+creating the config file first, it uses compiled-in defaults (which
+might not work for you).
+
+File Descriptions
+-----------------
+
+The initial AUTORUN.SYS is aexec.xex and loadmkau.xex concatenated.
+The code in aexec.xex is the atari_exec() function, loaded to $600.
+loadmkau.xex uses atari_exec() to load & run MAKEAUTO.COM. This
+AUTORUN.SYS is *overwritten* by MAKEAUTO.COM (see below).
+
+NOTE: All the *.COM files contain the aexec.xex code, so atari_exec()
+can be called from any of them, even if they're loaded out of the usual
+order. aexec.xex (atari_exec()) is necessary because standard Atari DOS
+doesn't provide a way to load and run an executable programmatically (only
+interactively from the DOS menu). Third party DOSes (notably SpartaDOS)
+provide a function (an XIO call) to do this, but FujiChat is intended
+to work with all DOSes.
+
+MAKEAUTO.COM asks for the serial port driver to use (the *.SER files are
+the choices). It creates a new AUTORUN.SYS which is a concatenation of
+the chosen serial driver and LOADMENU.COM. After it's done, it prompts
+the user to reboot (to boot with the new AUTORUN.SYS). Note: this means
+FujiChat must be run from a writable disk.
+
+LOADMENU.COM simply runs FUJIMENU.COM. It's never run standalone; it's
+incorporated in AUTORUN.SYS (along with the serial driver). The reason
+for this indirection is to keep FUJIMENU.COM as a standalone executable,
+not containing the serial port driver (and not named AUTORUN.SYS).
+
+FUJIMENU.COM is the main menu, with the choices About, Setup, and Chat.
+It runs ABOUT.COM, FUJICONF.COM, or FUJICHAT.COM based on the user's
+choise.
+
+ABOUT.COM is basically the Unix "more" command for the Atari. It reads and
+displays ABOUT.TXT with a ---more--- prompt at the end of each screens'
+worth. When it's done, it reloads FUJIMENU.COM.
+
+FUJICONF.COM is the config menu (Setup), which asks for IP addresses, IRC
+nick, etc. It can be run either from FUJIMENU.COM or from FUJICHAT.COM
+(while not connected to the server). Note that the config is persistent
+in memory between runs of FUJICONF.COM and FUJICHAT.COM, meaning you can
+temporarily change settings (in memory only) by *not* saving the config
+(answer N to "Save this config?"). Also, the first question it asks
+(Change serial driver?) will run MAKEAUTO.COM (see above).
+
+FUJICHAT.COM is the main executable. It's loaded by FUJIMENU.COM, and
+expects a serial port (R:) driver to already be loaded. If you wanted
+to "install" FujiChat to a hard disk or otherwise run it directly from
+e.g. a SpartaDOS command line, you could load this by itself (without
+booting the FujiChat disk), *provided* you already have an R: driver
+loaded *and* that you've created a FUJICHAT.CFG (by running FUJICONF.COM).
+
+The *.SER files are just the various R: device drivers. These are
+the standard drivers, I just gave them a .SER extension to make them
+stand out.
