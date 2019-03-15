@@ -5,7 +5,6 @@ set -e
 rm -rf disk
 mkdir disk
 cp dos_20s.atr disk/fujichat.atr
-cp uip fujichat.xex
 cp atari850.ser disk/atari850.ser
 cp bobvert.com disk/bobvert.ser
 cp prconn.ser disk/prconn.ser
