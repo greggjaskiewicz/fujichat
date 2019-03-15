@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include "fujichat.h"
 #include "common.h"
@@ -14,9 +15,6 @@ static char *rs232_drivers[][2] = {
 	{ "D:PRCONN.SER", "P:R: Connection" },
 };
 
-/* APPEND_BUF_SIZE should be >= the size of the largest .SER file */
-#define APPEND_BUF_SIZE 2048
-
 void reboot(void) {
 	asm("jmp $e477");
 }
@@ -24,10 +22,12 @@ void reboot(void) {
 static char get_yesno(char *prompt, char dflt) {
 	char buf[5];
 
-	printf("%s [%c/%c]: ",
-			prompt,
-			(dflt ? 'Y' : 'y'),
-			(dflt ? 'n' : 'N'));
+	fputs(prompt, stdout);
+	fputs(" [", stdout);
+	putchar(dflt ? 'Y' : 'y');
+	putchar('/');
+	putchar(dflt ? 'n' : 'N');
+	fputs("]: ", stdout);
 
 	fflush(stdout);
 	get_line(buf, 4);
@@ -45,41 +45,22 @@ static char get_yesno(char *prompt, char dflt) {
 	}
 }
 
-//char append_to(FILE *to, char *src) {
-//	int bytes;
-//	char ret;
-//	static char buf[APPEND_BUF_SIZE];
-//	FILE *from = fopen(src, "rb");
-//
-//	printf("append_to: %s\n", src);
-//
-//	if(!from) {
-//		perror(src);
-//		return 0;
-//	}
-//
-//	while( (bytes = fread(buf, 1, APPEND_BUF_SIZE, from)) ) {
-//		printf("%d bytes in, eof? %d\n", bytes, feof(from));
-//		bytes = fwrite(buf, 1, bytes, to);
-//		printf("%d bytes out\n", bytes);
-//	}
-//
-//	ret = feof(from); /* 1 = no error */
-//	fclose(from);
-//
-//	return ret;
-//}
+void printerr(char *msg) {
+	char ebuf[4];
+	(void)itoa(_oserror, ebuf, 10);
+	fputs(msg, stdout);
+	fputs(": Error ", stdout);
+	puts(ebuf);
+	putchar(A_BEL);
+}
 
 char append_to(FILE *to, char *src) {
 	int bytes = 0, c;
 	char ret;
-	// static char buf[APPEND_BUF_SIZE];
 	FILE *from = fopen(src, "rb");
 
-	printf("append_to: %s\n", src);
-
 	if(!from) {
-		perror(src);
+		printerr(src);
 		return 0;
 	}
 
@@ -94,7 +75,6 @@ char append_to(FILE *to, char *src) {
 	ret = feof(from); /* 1 = no error */
 	fclose(from);
 
-	printf("bytes=%d, ret=%d\n", bytes, ret);
 	return ret;
 }
 
@@ -107,7 +87,8 @@ char append_files(char *dst, char *src1, char *src2) {
 		fclose(dfile);
 		return ret;
 	} else {
-		perror(dst);
+		printerr(dst);
+		fclose(dfile);
 		return 0;
 	}
 }
@@ -116,15 +97,15 @@ static void rs232_driver_menu() {
 	static char buf[256];
 	int i;
 
-	puts("Select your serial port type\n");
+	puts("Select your serial port driver");
 	for(i=0; i<DRIVER_LIST_LEN; ++i) {
-		printf("%d: %s\n",
-				i + 1,
-				rs232_drivers[i][1]);
+		putchar('1' + i);
+		putchar(':');
+		putchar(' ');
+		puts(rs232_drivers[i][1]);
 	}
 
-	puts("\nEnter number from list, or the\ndriver filename if not listed.");
-	fputs("[2]: ", stdout);
+	fputs("\nEnter number from list, or the\ndriver filename if not listed.\n[2]: ", stdout);
 	fflush(stdout);
 
 	do {
@@ -147,12 +128,11 @@ static void rs232_driver_menu() {
 		} /* else use whatever they entered as a filename */
 	} while(i);
 
-	// if(!rename("D:AUTORUN.SYS", "D:AUTORUN.BAK")) {
-		// puts("Renamed AUTORUN.SYS to AUTORUN.BAK");
-	// }
-
 	do {
-		printf("\nCreating AUTORUN.SYS from\n%s and LOADMENU.COM\n", buf);
+		puts("\nCreating AUTORUN.SYS from");
+		fputs(buf, stdout);
+		puts(" and LOADMENU.COM");
+
 		i = !append_files("D:AUTORUN.SYS", buf, "D:LOADMENU.COM");
 		if(i) {
 			i = get_yesno("\xfdRetry", 1);

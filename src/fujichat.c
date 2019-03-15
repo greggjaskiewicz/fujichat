@@ -55,6 +55,7 @@
 /* FujiChat includes */
 #include "fujichat.h"
 #include "common.h"
+#include "formatip.h"
 #include "features.h"
 
 #ifdef FEAT_KEYBOARD_MACROS

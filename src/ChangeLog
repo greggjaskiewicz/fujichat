@@ -1,3 +1,9 @@
+- 20190315 bkw:
+
+Eliminate printf/sprintf calls from fujimenu.c and makeauto.c. Also
+eliminate perror() from makeauto.c, which shrinks the xex by almost 2KB
+(but prints numeric error messages instead of human-readable ones).
+
 - 20190313 bkw:
 
 FujiChat is back!

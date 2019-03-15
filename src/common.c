@@ -18,25 +18,6 @@ void disable_break(void) {
 	asm("sta $D20E"); /* IRQEN */
 }
 
-/* easier to copy/paste this tiny function from uip.c
-	than it would be to rebuild all of uIP for use in
-	this program! Also don't want to bloat fujiconf by
-	linking uip.a, even if it would link without a
-	recompile. */
-/*
-u16_t local_htons(u16_t val) {
-	return HTONS(val);
-}
-*/
-
-/* this version's half the size */
-u16_t local_htons(u16_t val) {
-	__AX__ = val;
-	asm("sta tmp1");
-	asm("txa");
-	asm("ldx tmp1");
-}
-
 /* helper for fuji_cgetc */
 void __fastcall__ call_keybdv(void) {
 	asm("lda $E420+5"); /* KEYBDV */
@@ -54,37 +35,6 @@ char __fastcall__ fuji_cgetc(void) {
 	asm("ldx	#0");
 }
 
-
-#if 0
-char get_config(void) {
-	char config_valid = 0;
-	FILE *f = fopen(DEFAULT_CONF_FILE, "rb");
-
-	puts("Loading config from " DEFAULT_CONF_FILE);
-
-	if(f) {
-		config_valid =
-			fread(config, 1, sizeof(fuji_conf_t), f) == sizeof(fuji_conf_t);
-		fclose(f);
-		if(!config_valid)
-			puts("Config file is wrong size");
-	} else {
-		puts("No config file found");
-	}
-
-	if(config_valid) {
-		if(!config_is_valid()) {
-			puts("Invalid or outdated config file");
-			config_valid = 0;
-		} else {
-			puts("Loaded OK");
-		}
-	}
-
-	return config_valid;
-}
-
-#else
 /* using open() read() close() instead of fopen() fread() fclose()
 	is a big win: save us 438 bytes! */
 char get_config(void) {
@@ -114,7 +64,6 @@ char get_config(void) {
 
 	return config_valid;
 }
-#endif
 
 char config_is_valid(void) {
 	// return( (memcmp(config->signature, CONF_SIGNATURE, 2) == 0) && (config->version == CONF_VERSION) );
@@ -157,57 +106,6 @@ void set_default_config(void) {
 	*(char *)(CONFIG_ADDRESS+2) = CONF_VERSION;
 
 	// config_valid = 1;
-}
-
-static char ipbuf[20];
-/*
-static char *fmt = "%d.%d.%d.%d";
-*/
-char * format_ip(uip_ipaddr_t *ip) {
-
-	u16_t *ipaddr = (u16_t *)ip;
-	sprintf(ipbuf, "%d.%d.%d.%d",
-			local_htons(ipaddr[0]) >> 8,
-			local_htons(ipaddr[0]) & 0xff,
-			local_htons(ipaddr[1]) >> 8,
-			local_htons(ipaddr[1]) & 0xff);
-
-	return ipbuf;
-
-	/*
-	asm("	sta ptr1");
-	asm("	stx ptr1+1");
-
-	asm("	lda #<_ipbuf");
-	asm("	ldx #>_ipbuf");
-	asm("	jsr pushax");
-
-	asm("	lda #<_fmt");
-	asm("	ldx #>_fmt");
-	asm("	jsr pushax");
-
-	asm("	ldy #0");
-	asm("	lda (ptr1),y");
-	asm("	jsr pusha0");
-
-	asm("	ldy #1");
-	asm("	lda (ptr1),y");
-	asm("	jsr pusha0");
-
-	asm("	ldy #2");
-	asm("	lda (ptr1),y");
-	asm("	jsr pusha0");
-
-	asm("	ldy #3");
-	asm("	lda (ptr1),y");
-	asm("	jsr pusha0");
-
-	asm("	ldy #$0c");
-	asm("	jsr _sprintf");
-
-	asm("	lda #<_ipbuf");
-	asm("	ldx #>_ipbuf");
-	*/
 }
 
 void get_line(char *buf, unsigned char len) {

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <conio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "fujichat.h"
 #include "common.h"
 
@@ -9,10 +10,19 @@
 */
 
 void run_prog(char *file) {
+	static char err[4];
 	int c;
-	printf("\nLoading %s...\n", file);
+	fputs("\nLoading ", stdout);
+	fputs(file, stdout);
+	puts("...");
 	c = atari_exec(file);
-	printf("Error %d!\n\xfd", c);
+	// printf("Error %d!\n\xfd", c);
+	(void)itoa(c, err, 10);
+	fputs("Error ", stdout);
+	fputs(err, stdout);
+	putchar('!');
+	putchar(0xfd);
+	putchar('\n');
 }
 
 void main(void) {
@@ -27,17 +37,35 @@ void main(void) {
 		set_default_config();
 
 	while(1) {
-		printf("\n  %cbout\n", 'A' | 0x80);
+		putchar('\n');
+		putchar(' ');
+		putchar(' ');
+		putchar(0xc1);
+		puts("bout");
+		// printf("\n  %cbout\n", 'A' | 0x80);
 
+		putchar(have_conf ? ' ' : '*');
+		putchar(' ');
+		putchar(0xd3);
+		puts("etup");
+		/*
 		printf("%s%cetup\n",
 				(have_conf ? "  " : "* "),
 				'S' | 0x80);
+				*/
 
+		putchar(have_conf ? '*' : ' ');
+		putchar(' ');
+		putchar(0xc3);
+		puts("hat");
+		/*
 		printf("%s%chat\n",
 				(have_conf ? "* " : "  "),
 				'C' | 0x80);
+				*/
 
-		printf("  %cOS\n", 'D' | 0x80);
+		puts("  \xc4OS");
+		// printf("  %cOS\n", 'D' | 0x80);
 
 		putchar('\n');
 		putchar('>');

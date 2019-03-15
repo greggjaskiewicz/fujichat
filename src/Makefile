@@ -13,7 +13,7 @@ all: fujichat.xex fujiconf.xex aexec.xex fujimenu.xex makeauto.xex about.xex loa
 # The uIP Makefile:
 -include Makefile.include
 
-uip: $(addprefix $(OBJECTDIR)/, fujichat.o common.o commands.o rs232dev.o clock-arch.o) keybuf.o apps.a uip.a fujiput.s
+uip: $(addprefix $(OBJECTDIR)/, fujichat.o common.o commands.o rs232dev.o clock-arch.o) keybuf.o apps.a uip.a fujiput.s formatip.o
 
 fujichat.xex: uip
 	mv uip fujichat.xex
@@ -24,8 +24,11 @@ keybuf.o: keybuf.s
 common.o: common.c common.h
 	$(CC) $(CFLAGS) -c -o common.o common.c
 
-fujiconf.xex: fujiconf.c fujichat.h common.o
-	$(CC) $(CFLAGS) -o fujiconf.xex fujiconf.c common.o obj/uiplib.o
+formatip.o: formatip.c formatip.h
+	$(CC) $(CFLAGS) -c -o formatip.o formatip.c
+
+fujiconf.xex: fujiconf.c fujichat.h common.o formatip.o
+	$(CC) $(CFLAGS) -o fujiconf.xex fujiconf.c common.o formatip.o obj/uiplib.o
 
 fujimenu.xex: fujimenu.c fujichat.h aexec.xex common.o
 	$(CC) $(CFLAGS) -o fujimenu.xex fujimenu.c common.o

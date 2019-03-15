@@ -8,6 +8,7 @@
 #include "uiplib.h"
 #include "fujichat.h"
 #include "common.h"
+#include "formatip.h"
 
 /* TODO: move these to an external file or otherwise come up with a way
 	to reuse the memory */

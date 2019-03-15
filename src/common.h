@@ -9,10 +9,6 @@
 /* This stays resident */
 extern fuji_conf_t *config;
 
-/* uIP-related */
-char * format_ip(uip_ipaddr_t *ip);
-u16_t local_htons(u16_t val);
-
 /* config-related */
 char get_config(void);
 char config_is_valid(void);
