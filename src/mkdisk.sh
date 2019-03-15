@@ -45,3 +45,5 @@ if [ "`whoami`" = "urchlay" ]; then
 	axe -w fujichat.cfg fujitest.atr
 	mv fujitest.atr ..
 fi
+
+rm fujichat.atr
