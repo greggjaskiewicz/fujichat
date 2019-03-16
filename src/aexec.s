@@ -4,9 +4,10 @@
 ; Return value: 0 for success, nonzero on error, never returns if exe has
 ; a run address.
 
-; TODO: learn ca65 syntax better, port this to ca65
+; This is for the Atari, but it gets built with "-t none" to
+; avoid ld65 adding the C runtime startup code. Also, there is
+; NO run address in this file.
 
-; Usage: build with "dasm aexec.dasm -f3 -oaexec.xex"
 ; "Link" to your program with "cat aexec.xex yourprog.xex > newprog.xex"
 
 ; int __fastcall__ (*atari_exec_p)(char *) = (int __fastcall__ (*)(char *))0x600;
@@ -30,20 +31,19 @@
 ; the caller...
 
 
- processor 6502
- include "equates.inc"
+ .include "atari.inc"
 
 tmp = $d4 ; aka FR0
 loadaddr = $d6
 
 main = $0600
 
- org main-6
- word $FFFF
- word main
- word endmain-1
+ .org main-6
+ .word $FFFF
+ .word main
+ .word endmain-1
 
- org main
+ .org main
  pha
  txa
  pha
@@ -96,7 +96,7 @@ fndone:
 fail:
  lda #$48
  sta 710
-hang bne hang
+hang: bne hang
 
 readheader:
 ; read 2 bytes into local buffer
@@ -155,7 +155,7 @@ noinc:
  sta INITAD+1
  beq readheader ; branch always
 
-do_init
+do_init:
  jmp (INITAD)
 
 close_file:
@@ -171,7 +171,7 @@ close_file:
 
 ; If there was no run address, we were probably loading an R: driver, so
 ; our caller is safe to return to
-norun
+norun:
  lda #0 ; return 0
  tax
  rts
@@ -185,22 +185,18 @@ read2bytes:
  sta ICBAH+$10
  sta ICBLH+$10
 read_segment:
- lda #C_GETCHR
+ lda #GETCHR
  sta ICCOM+$10
  ldx #$10
  jmp CIOV
 
-do_run
+do_run:
  jmp (RUNAD)
 
-fclose
- lda #C_CLOSE
+fclose:
+ lda #CLOSE
  sta ICCOM+$10
  ldx #$10
  jmp CIOV
 
-endmain
-
-; word RUNAD
-; word RUNAD+1
-; word main
+endmain:

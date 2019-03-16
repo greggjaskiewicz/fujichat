@@ -45,8 +45,8 @@ loadmenu.xex: loadxex.s
 loadmkau.xex: loadxex.s
 	cl65 -t none -o loadmkau.xex loadxex.s
 
-aexec.xex: aexec.dasm
-	dasm aexec.dasm -f3 -oaexec.xex
+aexec.xex: aexec.s
+	cl65 -t none -o aexec.xex aexec.s
 
 test: disk
 	atariserver fujitest.atr

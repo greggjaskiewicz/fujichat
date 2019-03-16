@@ -5,7 +5,8 @@
 ; I'd have to make AUTORUN.SYS a copy of FUJIMENU.COM with
 ; the serial driver prepended.
 
-RUNAD = $02e0
+ .include "atari.inc"
+
 atari_exec = $0600
 main = $2e00 ; same place as cc65
 
