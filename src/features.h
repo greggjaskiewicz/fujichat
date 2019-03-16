@@ -28,6 +28,7 @@
 #undef FEAT_ATRACT_AWAY
 #undef FEAT_KEYBOARD_BUFFER
 #undef FEAT_COLOR_COMMAND
+#undef FEAT_NICK_COMPLETE
 
 #elif defined(FEAT_COL80_HACK)
 
@@ -37,6 +38,7 @@
 // #define FEAT_TRAFFIC_INDICATOR
 #define FEAT_KEYBOARD_BUFFER
 #define FEAT_COLOR_COMMAND
+#undef FEAT_NICK_COMPLETE
 
 /* COL80 hack uses 9K of high RAM, so let's disable
 	some bells & whistles. */
@@ -100,6 +102,8 @@
 // #define FEAT_UNICODE_TEST
 
 /* End of features */
+
+#define FEAT_NICK_COMPLETE
 
 #endif
 #endif

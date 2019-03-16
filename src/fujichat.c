@@ -136,6 +136,13 @@ struct telnet_state *tstate; /* ../apps/telnet.h */
 struct timer vbell_timer;
 #endif
 
+#ifdef FEAT_NICK_COMPLETE
+#define NICK_LIST_SIZE 20
+void nick_completion(void);
+void add_to_nick_list(char *);
+static char nick_list[NICK_LIST_SIZE][NICKLEN+1];
+#endif
+
 /*---------------------------------------------------------------------------*/
 void main(void) {
 #ifdef FEAT_DYNAMIC_VERSION
@@ -194,6 +201,8 @@ void main(void) {
 
 		if(strcasecmp(cmdbuf, "d") == 0) {
 			exit(0);
+		} else if(strcasecmp(cmdbuf, "r") == 0) {
+			(void)atari_exec("D:FUJICHAT.COM");
 		} else if(strcasecmp(cmdbuf, "s") == 0) {
 			i = atari_exec(SETUP_FILENAME);
 			printf("Error %d!\n", i);
@@ -526,7 +535,11 @@ static void handle_keystroke(void) {
 		c = NL;
 		send_buf = 1;
 	} else if(c == A_TAB) {
+#ifdef FEAT_NICK_COMPLETE
+		nick_completion();
+#else
 		c = TAB;
+#endif
 	}
 // #ifdef FEAT_COL80_HACK
 	// else { col80_cursor(); }
@@ -813,8 +826,16 @@ void do_msg() {
 				output_buf[output_buf_len - 2] = A_EOL;
 				output_buf[output_buf_len - 1] = '\0';
 				printf("* %s %s", nick, msg + 8);
+#ifdef FEAT_NICK_COMPLETE
+				add_to_nick_list(nick);
+#endif
 			} else {
 				printf("%s %s", nick, msg);
+#ifdef FEAT_NICK_COMPLETE
+				nick++;
+				bang[0] = '\0';
+				add_to_nick_list(nick);
+#endif
 			}
 		} else {
 			// privmsg, is to our nick
@@ -1014,17 +1035,70 @@ void resolv_found(char *name, u16_t *ipaddr) {
 		done = 1;
 	} else {
 		printf("%s is %s\n", name, format_ip((uip_ipaddr_t *)ipaddr));
-		/*
-		printf("Found name '%s' = %d.%d.%d.%d\n", name,
-				htons(ipaddr[0]) >> 8,
-				htons(ipaddr[0]) & 0xff,
-				htons(ipaddr[1]) >> 8,
-				htons(ipaddr[1]) & 0xff);
-				*/
 		if(!connected)
 			(void)uip_connect((uip_ipaddr_t *)ipaddr, htons(config->server_port));
 	}
 }
+
+#ifdef FEAT_NICK_COMPLETE
+/* nick completion: if the cursor is at the end of a word, search backwards
+	to the previous space or the beginning of the line to find the start
+	of the search term. Then search for that term in the nick list. If
+	we find anything, truncate the input buffer at the start of the search
+	term, then append whatever we found. */
+
+void add_to_nick_list(char *nick) {
+	int i;
+	for(i=0; i<NICK_LIST_SIZE; i++) {
+		if(strcmp(nick, nick_list[i]) == 0) {
+			/* already in list */
+			return;
+		}
+	}
+
+	for(i=0; i<NICK_LIST_SIZE; i++) {
+		if(nick_list[i][0] == '\0') {
+			/* found empty slot, add it here */
+			strcpy(nick_list[i], nick);
+			return;
+		}
+	}
+
+	/* list full, replace 1st element (FIXME: *very* naive strategy) */
+	strcpy(nick_list[0], nick);
+}
+
+void nick_completion(void) {
+	static char term[NICKLEN+1];
+	static char result[NICKLEN+1];
+	int len = 0;
+	int i;
+	char *start = input_buf + input_buf_len;
+
+	while(start > input_buf && start[-1] != ' ' && len < NICKLEN) {
+		start--;
+		len++;
+		fuji_putchar(A_BS);
+	}
+	if(len == 0) return;
+	input_buf_len -= len;
+
+	for(i=0; i<len; i++) {
+		term[i] = start[i];
+	}
+	term[i] = '\0';
+
+	for(i=0; i<NICK_LIST_SIZE; i++) {
+		if(strnicmp(term, nick_list[i], len) == 0) {
+			strcpy(input_buf + input_buf_len, nick_list[i]);
+			input_buf_len += strlen(nick_list[i]);
+			del_user_buffer();
+			redraw_user_buffer();
+		}
+	}
+
+}
+#endif
 
 #ifdef FEAT_LOGGING
 
