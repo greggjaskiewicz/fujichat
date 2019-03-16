@@ -39,11 +39,11 @@ about.xex: about.c fujichat.h aexec.xex common.o
 makeauto.xex: makeauto.c
 	$(CC) $(CFLAGS) -o makeauto.xex makeauto.c common.o
 
-loadmenu.xex: loadmenu.dasm
-	dasm loadmenu.dasm -f3 -oloadmenu.xex
+loadmenu.xex: loadxex.s
+	cl65 --asm-define MENU -t none -o loadmenu.xex loadxex.s
 
-loadmkau.xex: loadmkau.dasm
-	dasm loadmkau.dasm -f3 -oloadmkau.xex
+loadmkau.xex: loadxex.s
+	cl65 -t none -o loadmkau.xex loadxex.s
 
 aexec.xex: aexec.dasm
 	dasm aexec.dasm -f3 -oaexec.xex
