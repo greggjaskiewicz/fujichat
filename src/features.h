@@ -99,7 +99,7 @@
 #define FEAT_COLOR_COMMAND
 
 /* messing around, not functional yet */
-// #define FEAT_UNICODE_TEST
+#define FEAT_UNICODE_TEST
 
 /* End of features */
 

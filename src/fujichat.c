@@ -203,6 +203,7 @@ void main(void) {
 			exit(0);
 		} else if(strcasecmp(cmdbuf, "r") == 0) {
 			(void)atari_exec("D:FUJICHAT.COM");
+			exit(0);
 		} else if(strcasecmp(cmdbuf, "s") == 0) {
 			i = atari_exec(SETUP_FILENAME);
 			printf("Error %d!\n", i);
@@ -547,6 +548,7 @@ static void handle_keystroke(void) {
 
 
 #ifdef FEAT_UNICODE_TEST
+#if 0
 	if(c == 0x10) { /* ATASCII clubs symbol */
 		input_buf[input_buf_len++] = 0xe2; /* UTF-8 marker */
 		input_buf[input_buf_len++] = 0x99;
@@ -554,6 +556,7 @@ static void handle_keystroke(void) {
 		fuji_putchar(c);
 		return;
 	}
+#endif
 #endif
 
 	/* Store keystroke in input buffer */
@@ -620,7 +623,6 @@ void send_server_cmd_2arg(char *cmd, char *arg) {
 
 /* The telnet_* functions are uIP application callbacks. */
 void telnet_connected(struct telnet_state *s) {
-	/* puts("Connected to host, press START to disconnect"); */
 	puts("> Connected to server");
 	tstate = s;
 	s->text = NULL;
@@ -629,29 +631,26 @@ void telnet_connected(struct telnet_state *s) {
 	connected = 1;
 }
 
-/* 20081125 bkw: why don't these pragmas do anything? */
-#pragma warn (off)
-void telnet_closed(struct telnet_state *s) {
+void telnet_closed(struct telnet_state *) {
 	puts("> Connection closed");
 	uip_close();
 	done = 1;
 }
 
-void telnet_sent(struct telnet_state *s) {
+void telnet_sent(struct telnet_state *) {
 }
 
-void telnet_aborted(struct telnet_state *s) {
+void telnet_aborted(struct telnet_state *) {
 	puts("> Connection aborted");
 	uip_abort();
 	done = 1;
 }
 
-void telnet_timedout(struct telnet_state *s) {
+void telnet_timedout(struct telnet_state *) {
 	puts("> Connection timed out");
 	uip_abort();
 	done = 1;
 }
-#pragma warn (on)
 
 void do_pong() {
 	char *p = serv_msg_buf;
@@ -830,7 +829,11 @@ void do_msg() {
 				add_to_nick_list(nick);
 #endif
 			} else {
+				/* get rid of ending EOL */
+				output_buf[output_buf_len - 1] = '\0';
 				printf("%s %s", nick, msg);
+				/* only print an EOL if we're not in column 0 already */
+				if(PEEK(0x55)) fuji_putchar(A_EOL);
 #ifdef FEAT_NICK_COMPLETE
 				nick++;
 				bang[0] = '\0';
@@ -987,6 +990,13 @@ void telnet_newdata(struct telnet_state *s, char *data, u16_t len) {
 			c = '^' | 0x80;
 		} else if(c == 0x60) { // backtick
 			c = 0xa7; // inverse quote
+#endif
+#ifdef FEAT_UNICODE_TEST
+		} else if(c > 0x7f) {
+			if(c == 0xc2 && t[0] == 0xb0) { /* utf8 degrees */
+				c = 20; /* ATASCII ball */
+				t++;
+			}
 #endif
 		}
 
