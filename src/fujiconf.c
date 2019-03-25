@@ -38,7 +38,7 @@ char baud_bytes[] = { RS_BAUD_1200, RS_BAUD_2400, RS_BAUD_4800, RS_BAUD_9600, RS
 char max_baud = sizeof(baud_bytes);
 
 static void get_conf_color(char *name, char *color, char dflt);
-static char get_yesno(char *prompt, char dflt);
+static char get_yesno(char *prompt, int dflt);
 void save_config(void);
 
 static void bell() {
@@ -292,7 +292,7 @@ static void get_conf_color(char *name, char *color, char dflt) {
 		*color = atoi(buf);
 }
 
-static char get_yesno(char *prompt, char dflt) {
+static char get_yesno(char *prompt, int dflt) {
 	char buf[5];
 
 	printf("%s [%c/%c]: ",
