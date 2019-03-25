@@ -538,6 +538,7 @@ static void handle_keystroke(void) {
 	} else if(c == A_TAB) {
 #ifdef FEAT_NICK_COMPLETE
 		nick_completion();
+		return;
 #else
 		c = TAB;
 #endif
