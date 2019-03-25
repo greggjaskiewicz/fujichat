@@ -69,9 +69,9 @@ ifconfig $SLIP_IFACE $LOCAL_IP pointopoint $REMOTE_IP
 
 if [ "$IP_MASQUERADE" = "yes" ]; then
 	if [ "$MASQ_IFACE" = "" ]; then
-		/sbin/ip route show 2>/dev/null | sed -n 's,^default.*dev *\([^ ]*\).*$,\1,p'
+		MASQ_IFACE="$(/sbin/ip route show 2>/dev/null | sed -n 's,^default.*dev *\([^ ]*\).*$,\1,p')"
 		if [ "$MASQ_IFACE" = "" ]; then
-			/sbin/route -n | grep '^0.0.0.0' | rev | cut -d' ' -f1 |rev
+			MASQ_IFACE="$(/sbin/route -n | grep '^0.0.0.0' | rev | cut -d' ' -f1 |rev)"
 			if [ "$MASQ_IFACE" = "" ]; then
 				echo "Can't autodetect default interface, guessing eth0"
 				MASQ_IFACE="eth0"
