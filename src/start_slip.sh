@@ -3,7 +3,7 @@
 # Configurable stuff. You only ever need to change the IP addresses
 # if your LAN already uses 192.168.0.0/24.
 
-TTY=/dev/ttyUSB0       # serial port to use
+TTY=/dev/ttyS2         # serial port to use
 BAUD=9600              # must match baud rate in fujichat.cfg on the Atari
 LOCAL_IP=192.168.0.1   # SLIP IP address for Linux ("peer") host
 REMOTE_IP=192.168.0.2  # SLIP IP address for Atari host
@@ -20,6 +20,7 @@ DUMP_PACKETS=yes       # Run tcpdump on sl0 interface?
 #SLATTACH=a8_slattach  # slattach binary (possibly patched). if not set,
                        # search $PATH for a8_slattach, then fall back to
                        # regular slattach.
+SLATTACH=slattach
 
 #MASQ_IFACE=eth1       # if NATing, our main (LAM or internet) interface
                        # (if not set, detect automagically)

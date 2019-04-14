@@ -9,13 +9,21 @@
 /* inverse video version, used for local prompts: */
 #define SELF_INV "\xc6\xf5\xea\xe9\xc3\xe8\xe1\xf4"
 
+/* git revision, if available */
+#ifndef GITREV
+#  ifdef RELEASE
+#    define GITREV "RELEASE"
+#  else
+#    define GITREV "NOGIT"
+#  endif
+#endif
+
 #define VERSION "0.5_pre4"
-#define BANNER SELF_INV " v" VERSION
+#define BANNER SELF_INV " v" VERSION "-" GITREV
 #define VERSION_REPLY SELF " v" VERSION
 
 #define DEFAULT_NICK SELF
 
-// #define CONF_SIGNATURE "\x03\x0e"
 #define CONF_SIGNATURE_LO 0x03
 #define CONF_SIGNATURE_HI 0x0e
 #define CONF_VERSION 5

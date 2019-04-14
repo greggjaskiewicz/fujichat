@@ -2,10 +2,14 @@
 # Copyright (c) 2019, B. Watson.
 # All rights reserved. See doc/LICENSE.txt for legalese.
 
+# If we're working from a git tree, embed the revision and date
+# into the binary.
+GITREV=$(shell sh ./gitrev)
+
 CC     = cl65
 AR     = ar65
 APPS   = telnet resolv
-CFLAGS = -t atari -I../uip/uip -I. -O
+CFLAGS = -t atari -I../uip/uip -I. -O -DGITREV=\"$(GITREV)\"
 
 # Default target: build all the binaries.
 all: fujichat.xex fujiconf.xex aexec.xex fujimenu.xex makeauto.xex about.xex loadmkau.xex loadmenu.xex keybuf.o
@@ -69,4 +73,4 @@ keybuftest.xex: keybuftest.c keybuf.o
 
 # native, not Atari!
 clear_rts: clear_rts.c
-	cc -o clear_rts clear_rts.c
+	gcc -O2 -Wall -o clear_rts clear_rts.c

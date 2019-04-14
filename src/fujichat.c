@@ -699,12 +699,12 @@ void do_server_msg() {
 	if( (numeric = atoi(cmd)) ) {
 		switch(numeric) {
 			case 332: // topic
-				printf("> Topic: %s", arg);
+				printf("> Topic: %s\n", arg);
 				return;
 				break;
 
 			case 333: // topic nick
-				printf("> Topic set by %s", arg);
+				printf("> Topic set by %s\n", arg);
 				return;
 				break;
 
@@ -724,6 +724,7 @@ void do_server_msg() {
 					printf("> Joining %s\n", channel);
 					send_server_cmd("JOIN", channel);
 					joined_channel = 1;
+					return;
 				}
 				break;
 
@@ -771,11 +772,22 @@ char incoming_ctcp(char *nick, char *msg) {
 	return 0;
 }
 
+void maybe_eol(void) {
+	/* only print an EOL if we're not in column 0 already */
+	if(PEEK(0x55)) fuji_putchar(A_EOL);
+}
+
 /* Handler for text received from the server, responsible for
 	formatting. TODO: part/join/quit aren't handled correctly. */
 void do_msg() {
 	char *nick = output_buf, *cmd = output_buf, *chan = NULL, *msg = NULL;
 	char *bang = NULL;
+
+	/* remove EOL from buffer, so we can conditionally decide whether
+		or not to print it, based on the cursor column. If we're in
+		column 0 after printing the msg, we don't need an EOL (it just
+		causes a blank line) */
+	output_buf[output_buf_len--] = '\0';
 
 	while(*cmd != ' ') {
 		if(*cmd == '!') {
@@ -800,7 +812,7 @@ void do_msg() {
 	++chan;
 	msg = chan;
 
-	if(*msg != A_EOL) {
+	if(*msg) {
 		while(*msg && *msg != ' ')
 			++msg;
 		if(*msg) {
@@ -823,18 +835,15 @@ void do_msg() {
 			if(memcmp(msg, "\x01" "ACTION ", 8) == 0) {
 				nick++;
 				*bang = '\0';
-				output_buf[output_buf_len - 2] = A_EOL;
-				output_buf[output_buf_len - 1] = '\0';
+				output_buf[output_buf_len-1] = '\0';
 				printf("* %s %s", nick, msg + 8);
+				maybe_eol();
 #ifdef FEAT_NICK_COMPLETE
 				add_to_nick_list(nick);
 #endif
 			} else {
-				/* get rid of ending EOL */
-				output_buf[output_buf_len - 1] = '\0';
 				printf("%s %s", nick, msg);
-				/* only print an EOL if we're not in column 0 already */
-				if(PEEK(0x55)) fuji_putchar(A_EOL);
+				maybe_eol();
 #ifdef FEAT_NICK_COMPLETE
 				nick++;
 				bang[0] = '\0';
@@ -846,11 +855,12 @@ void do_msg() {
 			if(memcmp(msg, "\x01" "PING ", 6) == 0) {
 				nick++;
 				bang[0] = '\0';
-				output_buf[output_buf_len - 2] = '\0';
+				output_buf[output_buf_len - 1] = '\0';
 				serv_msg_buf_len = sprintf(serv_msg_buf, "NOTICE %s :\x01PING %s\x01%c",
 						nick, msg + 6, 0x0a);
 				send_serv_msg_buf();
-				printf("* CTCP PING from %s\n", nick);
+				printf("* CTCP PING from %s", nick);
+				maybe_eol();
 			} else if(memcmp(msg, "\x01" "VERSION\x01", 9) == 0) {
 				nick++;
 				*bang = '\0';
@@ -859,9 +869,11 @@ void do_msg() {
 						"an Atari %s\x01%c",
 						nick, os_version, 0x0a);
 				send_serv_msg_buf();
-				printf("* CTCP VERSION from %s\n", nick);
+				printf("* CTCP VERSION from %s", nick);
+				maybe_eol();
 			} else {
 				printf("-> %s %s", nick, msg);
+				maybe_eol();
 				if(config->ui_flags & UIFLAG_MSGBELL)
 					bell();
 				bang[0] = '\0';
@@ -873,14 +885,17 @@ void do_msg() {
 	} else if((strcmp(cmd, "NOTICE") == 0) && msg[0] == '\x01') {
 		nick++;
 		*bang = '\0';
-		if(!incoming_ctcp(nick, msg+1))
-			printf("* CTCP reply from %s: %s", nick, msg+1); // still has A_EOL
+		if(!incoming_ctcp(nick, msg+1)) {
+			printf("* CTCP reply from %s: %s", nick, msg+1);
+			maybe_eol();
+		}
 	} else {
 		if(*msg) {
 			printf("%s %s %s %s", nick, cmd, chan, msg);
 		} else {
 			printf("%s %s %s", nick, cmd, chan);
 		}
+		maybe_eol();
 	}
 
 	fflush(stdout);
@@ -968,7 +983,7 @@ void redraw_user_buffer() {
 /* Another uIP app callback. This decides whether or not we've received
 	a complete message from the server (which may be split into multiple
 	packets, and may end in the middle of a packet) */
-void telnet_newdata(struct telnet_state *s, char *data, u16_t len) {
+void telnet_newdata(struct telnet_state *, char *data, u16_t len) {
 	u16_t tlen = len;
 	char c, *t = data, buf_done = 0;
 
@@ -1081,7 +1096,7 @@ void add_to_nick_list(char *nick) {
 
 void nick_completion(void) {
 	static char term[NICKLEN+1];
-	static char result[NICKLEN+1];
+	// static char result[NICKLEN+1];
 	int len = 0;
 	int i;
 	char *start = input_buf + input_buf_len;
@@ -1105,9 +1120,13 @@ void nick_completion(void) {
 			input_buf_len += strlen(nick_list[i]);
 			del_user_buffer();
 			redraw_user_buffer();
+			return;
 		}
 	}
 
+	input_buf_len += len;
+	del_user_buffer();
+	redraw_user_buffer();
 }
 #endif
 

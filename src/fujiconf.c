@@ -327,7 +327,7 @@ void main(void) {
 	disable_break();
 
 	putchar(125);
-	puts(BANNER " Setup\n");
+	puts(BANNER "\n\nSetup Menu\n");
 	get_config();
 
 	if(!config_is_valid())

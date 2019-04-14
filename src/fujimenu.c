@@ -30,7 +30,7 @@ void main(void) {
 
 	disable_break();
 
-	puts("\x7d" BANNER " Main Menu\n");
+	puts("\x7d" BANNER "\n\nMain Menu\n");
 
 	have_conf = get_config();
 	if(!have_conf)
