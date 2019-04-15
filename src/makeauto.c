@@ -97,7 +97,8 @@ static void rs232_driver_menu() {
 	static char buf[256];
 	int i;
 
-	puts("Select your serial port driver");
+	puts("\x7d" BANNER "\n\nSerial Setup\n");
+	puts("Select your serial port driver\n");
 	for(i=0; i<DRIVER_LIST_LEN; ++i) {
 		putchar('1' + i);
 		putchar(':');
@@ -137,7 +138,8 @@ static void rs232_driver_menu() {
 		if(i) {
 			i = get_yesno("\xfdRetry", 1);
 			if(!i) {
-				puts("Failed to change driver");
+				puts("Failed to change driver, press Enter for DOS");
+				get_line(buf, 1);
 				return;
 			}
 		}

@@ -60,7 +60,7 @@ disk: all
 	sh mkdisk.sh
 
 clean:
-	rm -rf *.xex obj/ *.o *~ *core $(OBJECTDIR) *.a
+	rm -rf *.xex obj/ *.o *~ *core $(OBJECTDIR) *.a clear_rts
 	mkdir obj
 
 distclean: clean
