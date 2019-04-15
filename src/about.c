@@ -25,7 +25,7 @@ void more(char *file) {
 		if(*buf == '#') continue;
 
 		line += (strlen(buf) / 40 + 1);
-		if(line > 23) {
+		if(line > 22) {
 			fputs("--more--", stdout);
 			fflush(stdout);
 

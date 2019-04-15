@@ -2,23 +2,15 @@
 # but the reader can handler up to 199 char/line.
 # Comment lines (like this one) are ignored.
 FujiChat: an Atari 8-bit IRC client
-(c) 2008 B. Watson (aka Urchlay)
+(c) 2019 B. Watson (aka Urchlay)
 
-Version 0.4, 20081019
+Version 0.5, 2019xxxx
 
-This program includes the uIP TCP/IP
-stack, (c) Adam Dunkels.
+This software includes code from:
 
-Bob-Verter driver (c) 1989, Bob Puff
-
-[insert legalese krap here]
-[more legalese]
-[it's going to take up a few lines]
-[...]
-[...]
-[I hate legalese]
-
-[Long line that should be handled correctly by the line-counting logic. It's 3 screen lines.]
+- uIP TCP/IP stack, (c) Adam Dunkels
+- Bob-Verter driver (c) 1989, Bob Puff
+- Atari DOS 2.0S (c) 1980, Atari
 
 Special thanks to the FujiChat alpha
 testers:
@@ -27,9 +19,55 @@ testers:
 - charliec
 - SteveS
 
-...and the rest of the NewNet #atari
+...and the rest of the Freenode ##atari
 crowd.
 
-Stop by #atari sometime and say hi,
+Stop by ##atari sometime and say hi,
 everyone's welcome!
 
+The rest of this file is legalese:
+
+Redistribution and use in source
+and binary forms, with or without
+modification, are permitted provided
+that the following conditions
+are met:
+
+1. Redistributions of source code
+must retain the above copyright
+notice, this list of conditions and
+the following disclaimer.
+
+2. Redistributions in binary form
+must reproduce the above copyright
+notice, this list of conditions
+and the following disclaimer in the
+documentation and/or other materials
+provided with the distribution.
+
+3. The name of the author may not be
+used to endorse or promote products
+derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE
+AUTHOR "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING,
+BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL
+THE AUTHOR BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, WHETHER IN CONTRACT,
+STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
