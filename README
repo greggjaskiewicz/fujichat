@@ -183,15 +183,8 @@ Tab key to respond to the most recent user who sent you a PM.
 
 There are known bugs in FujiChat:
 
-The /msg command (and several others) doesn't correctly quote its
-argument, which means if you say "/msg somebody Hello, I'm on my Atari",
-they'll receive only the first word (the "Hello,"). Temporary workaround:
-say "/msg somebody :Hello, I'm on my Atari" (in other words prefix your
-message with a colon).
-
-The /ping command doesn't play nice with modern FreeNode servers, meaning
-you get either no ping responses, or else it prints a ping time >= 2500
-seconds.
+The formatting of server messages (join, part, quit, etc) is basically
+non-existent. They're printed as they come in over the wire.
 
 Not really a bug, but a missing feature: non-ASCII characters (accented
 letters, British pound symbol, etc) are printed as inverse video
